@@ -8,9 +8,10 @@ import type { Item, Market, Purchase, WarehouseItem } from "../types";
 interface ReportsSectionProps {
   items: Item[]; markets: Market[]; purchases: Purchase[];
   warehouse: WarehouseItem[]; initialMonth?: string;
+  onGoToHistoryItem?: (itemId: string) => void;
 }
 
-export function ReportsSection({ items, markets, purchases, warehouse, initialMonth }: ReportsSectionProps) {
+export function ReportsSection({ items, markets, purchases, warehouse, initialMonth, onGoToHistoryItem }: ReportsSectionProps) {
   const { isDark } = useTheme();
   const [dateFrom, setDateFrom] = useState(initialMonth ? `${initialMonth}-01` : "");
   const [dateTo, setDateTo] = useState(() => {
@@ -158,6 +159,42 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
       {/* Filters */}
       <div className={card}>
         <p className={lbl}>Filtros</p>
+
+        {/* Quick date presets */}
+        <div className="flex flex-col gap-1 mb-3">
+          <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período rápido</label>
+          <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900/80" : "bg-slate-100"}`}>
+            {([
+              { label: "7d",   days: 7   },
+              { label: "1m",   days: 30  },
+              { label: "3m",   days: 90  },
+              { label: "6m",   days: 180 },
+              { label: "1a",   days: 365 },
+              { label: "Tudo", days: 0   },
+            ] as { label: string; days: number }[]).map(preset => {
+              const isActive = (() => {
+                if (preset.days === 0) return !dateFrom && !dateTo;
+                const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
+                const fromStr = from.toISOString().slice(0, 10);
+                const toStr = new Date().toISOString().slice(0, 10);
+                return dateFrom === fromStr && dateTo === toStr;
+              })();
+              return (
+                <button key={preset.label} onClick={() => {
+                    if (preset.days === 0) { setDateFrom(""); setDateTo(""); return; }
+                    const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
+                    setDateFrom(from.toISOString().slice(0, 10));
+                    setDateTo(new Date().toISOString().slice(0, 10));
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${isActive ? "bg-teal-500 text-white shadow-sm" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Category filter */}
         <div className="flex flex-col gap-1 mb-3">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
@@ -166,18 +203,18 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
             {categoriesWithData.map(cat => <option key={cat} value={cat}>{cat}</option>)}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>De</label>
+
+        {/* Custom date range */}
+        <div className="flex flex-col gap-1 mb-1">
+          <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período personalizado</label>
+          <div className="grid grid-cols-2 gap-3">
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Até</label>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
           </div>
         </div>
+
         {(hasFilter || categoryMode) && (
           <div className="flex items-center justify-between mt-2">
             <p className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>
@@ -230,7 +267,7 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
                     const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
                     const isAboveAvg = last > avg;
                     return (
-                      <div key={id} className={`rounded-2xl border p-4 ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"}`}>
+                      <div key={id} onClick={() => onGoToHistoryItem?.(id)} className={`rounded-2xl border p-4 transition-all ${isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"} ${onGoToHistoryItem ? "cursor-pointer active:scale-[0.99]" : ""}`}>
                         {/* Header */}
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div>
@@ -238,6 +275,11 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
                             <p className={sub}>{freq}x comprado · {fmt(spent)} total</p>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {onGoToHistoryItem && (
+                              <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                                Histórico <Icon name="chevron" size={9} />
+                              </span>
+                            )}
                             {trend !== null && (
                               <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
                                 trend > 5 ? isDark ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-600"

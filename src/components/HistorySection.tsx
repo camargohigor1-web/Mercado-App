@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 import { Card, Badge, Empty, StatBox, BarChart, LineChart } from "./ui";
+import type { LineChartPoint } from "./ui";
 import { fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
 import type { Item, Market, Purchase, WarehouseItem } from "../types";
 
@@ -17,14 +18,23 @@ interface HistorySectionProps {
   initialHighlightedProductId?: string;
   onNavigateAway?: () => void;
   initialSearch?: string;
+  initialItemId?: string;
 }
 
-export function HistorySection({ items, markets, purchases, warehouse, onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialSearch }: HistorySectionProps) {
+export function HistorySection({ items, markets, purchases, warehouse, onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialSearch, initialItemId }: HistorySectionProps) {
   const { isDark } = useTheme();
   const initialPurchase = initialPurchaseId ? purchases.find(p => p.id === initialPurchaseId) ?? null : null;
   const [search, setSearch] = useState(initialSearch?.trim() ?? "");
   const [filterCat, setFilterCat] = useState("");
-  const [selectedItem, setSelectedItem] = useState<{ item: Item; stats: ReturnType<typeof calcStats> } | null>(null);
+  const [sortBy, setSortBy] = useState<"freq" | "alpha" | "recent">("freq");
+  const [selectedItem, setSelectedItem] = useState<{ item: Item; stats: ReturnType<typeof calcStats> } | null>(() => {
+    if (!initialItemId) return null;
+    const item = items?.find(i => i.id === initialItemId) ?? null;
+    if (!item) return null;
+    const wh = warehouse ?? [];
+    const stats = calcStats(item.id, items, purchases, wh.flatMap(w => w.entries || []));
+    return stats ? { item, stats } : null;
+  });
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(initialPurchase);
   const [subTab, setSubTab] = useState<"products" | "purchases">(initialPurchase ? "purchases" : "products");
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(initialHighlightedProductId);
@@ -108,6 +118,12 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
     .filter(({ item }) => !filterCat || item.category === filterCat)
     .sort((a, b) => b.stats!.count - a.stats!.count);
 
+  // Most recent purchase date per item
+  const lastPurchaseDateByItem: Record<string, string> = {};
+  purchases.forEach(p => p.lines.forEach(l => {
+    if (!lastPurchaseDateByItem[l.itemId] || p.date > lastPurchaseDateByItem[l.itemId]) lastPurchaseDateByItem[l.itemId] = p.date;
+  }));
+
   const sortedPurchases = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
   const filteredPurchases = sortedPurchases.filter(p => {
     const mktName = getMkt(p.marketId).toLowerCase();
@@ -121,12 +137,36 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
     groupedByDate[dateKey].push(p);
   });
 
+  // Sort items within each category
+  const sortItem = (a: typeof withStats[0], b: typeof withStats[0]) => {
+    if (sortBy === "alpha") return a.item.name.localeCompare(b.item.name);
+    if (sortBy === "recent") return (lastPurchaseDateByItem[b.item.id] || "").localeCompare(lastPurchaseDateByItem[a.item.id] || "");
+    return (b.stats?.count || 0) - (a.stats?.count || 0); // freq
+  };
+  // Sort categories
+  const catLastDate: Record<string, string> = {};
+  const catFreq: Record<string, number> = {};
+  withStats.forEach(({ item, stats }) => {
+    const cat = item.category || "Sem categoria";
+    const d = lastPurchaseDateByItem[item.id] || "";
+    if (!catLastDate[cat] || d > catLastDate[cat]) catLastDate[cat] = d;
+    catFreq[cat] = (catFreq[cat] || 0) + (stats?.count || 0);
+  });
+  const sortCat = (a: string, b: string) => {
+    if (sortBy === "alpha") return a.localeCompare(b);
+    if (sortBy === "recent") return (catLastDate[b] || "").localeCompare(catLastDate[a] || "");
+    return (catFreq[b] || 0) - (catFreq[a] || 0);
+  };
   const groupedByCategory: Record<string, typeof withStats> = {};
   withStats.forEach(({ item, stats }) => {
     const cat = item.category || "Sem categoria";
     if (!groupedByCategory[cat]) groupedByCategory[cat] = [];
     groupedByCategory[cat].push({ item, stats });
   });
+  // Apply sort within each group
+  Object.keys(groupedByCategory).forEach(cat => groupedByCategory[cat].sort(sortItem));
+  // Build sorted category order
+  const sortedCategoryKeys = Object.keys(groupedByCategory).sort(sortCat);
 
   // ── Product detail ─────────────────────────────────────────────────────────
   if (selectedItem) {
@@ -152,9 +192,15 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
 
     // Price evolution chart data (chronological)
     const chronoEntries = [...visibleEntries].sort((a, b) => a.date.localeCompare(b.date));
-    const priceEvolution = chronoEntries.map(e => ({
+    const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
       label: new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
       value: item.type === "bulk" ? (e.pricePerUnit || 0) / factor : (e.pricePerPkgAfterDiscount ?? e.pricePerPkg),
+      date: e.date,
+      market: e.market,
+      qty: item.type === "bulk"
+        ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}`
+        : `${e.numPkgs} emb`,
+      discount: e.discountTotal > 0 ? `Desc: ${fmt(e.discountTotal)}` : undefined,
     }));
 
     // Per-market comparison
@@ -215,7 +261,7 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">
               Evolução de preço ({item.type === "bulk" ? `R$/${du}` : "R$/emb"})
             </p>
-            <LineChart data={priceEvolution} formatValue={fmt} />
+            <LineChart data={priceEvolution} formatValue={fmt} unit={item.type === "bulk" ? `R$/${du}` : "R$/emb"} />
           </Card>
         )}
 
@@ -450,32 +496,37 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`}
       />
 
-      {/* Category chips — only on products tab */}
+      {/* Category filter + sort — products tab */}
       {subTab === "products" && (() => {
         const catsWithData = [...new Set(
           items
             .filter(item => calcStats(item.id, items, purchases, warehouse.flatMap(w => w.entries || [])) !== null)
-            .map(item => item.category)
-            .filter(Boolean)
+            .map(item => item.category).filter(Boolean)
         )];
-        if (catsWithData.length <= 1) return null;
         return (
-          <div className="flex gap-1.5 flex-wrap">
-            <button
-              onClick={() => setFilterCat("")}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${!filterCat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-200 text-slate-500 hover:text-slate-700"}`}
-            >
-              Todas
-            </button>
-            {catsWithData.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setFilterCat(filterCat === cat ? "" : cat)}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${filterCat === cat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-200 text-slate-500 hover:text-slate-700"}`}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="space-y-2">
+            {catsWithData.length > 1 && (
+              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+                className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
+                <option value="">Todas as categorias</option>
+                {catsWithData.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            )}
+            <div className="flex flex-col gap-1">
+              <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Ordenar por</label>
+              <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
+                {([
+                  { id: "freq",   label: "Frequência" },
+                  { id: "recent", label: "Recentes"   },
+                  { id: "alpha",  label: "A–Z"        },
+                ] as { id: "freq"|"recent"|"alpha"; label: string }[]).map(opt => (
+                  <button key={opt.id} onClick={() => setSortBy(opt.id)}
+                    className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${sortBy === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         );
       })()}
@@ -502,7 +553,7 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
         ) : withStats.length === 0 ? (
           <Empty icon="history" title="Nenhum resultado" />
         ) : (
-          Object.entries(groupedByCategory).map(([cat, prods]) => (
+          sortedCategoryKeys.map(cat => { const prods = groupedByCategory[cat]; return (
             <div key={cat}>
               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 px-1">{cat}</p>
               <div className="space-y-2">
@@ -528,7 +579,7 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
                 })}
               </div>
             </div>
-          ))
+          ); })
         )
       )}
 

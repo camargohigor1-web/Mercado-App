@@ -58,6 +58,7 @@ export default function App() {
   const [pendingKey,    setPendingKey]    = useState(0);
   const [reportsMonth,  setReportsMonth]  = useState<string | undefined>(undefined);
   const [openPurchaseId, setOpenPurchaseId] = useState<string | undefined>(undefined);
+  const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
   const [warehouseSelectionCount, setWarehouseSelectionCount] = useState(0);
   const [pendingTab, setPendingTab] = useState<string | null>(null);
@@ -91,6 +92,18 @@ export default function App() {
 
   function handleGoToHistoryPurchase(purchaseId: string) {
     setOpenPurchaseId(purchaseId);
+    setHighlightedProductId(undefined);
+    setTab("history");
+  }
+
+  function handleGoToHistoryItem(itemId: string) {
+    setOpenItemId(itemId);
+    setTab("history");
+  }
+
+  function handleGoToHistoryPurchaseWithProduct(purchaseId: string, itemId: string) {
+    setOpenPurchaseId(purchaseId);
+    setHighlightedProductId(itemId);
     setTab("history");
   }
 
@@ -208,6 +221,7 @@ export default function App() {
                 onConvertToPurchase={handleConvertToPurchase}
                 onGoToItems={() => setTab("items")}
                 onGoToHistoryPurchase={handleGoToHistoryPurchase}
+                onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
               />
             )}
             {tab === "history" && (
@@ -217,8 +231,9 @@ export default function App() {
                 onGoToNewPurchase={handleGoToNewPurchase}
                 onRepeatPurchase={handleRepeatPurchase}
                 initialPurchaseId={openPurchaseId}
+                initialItemId={openItemId}
                 initialHighlightedProductId={highlightedProductId}
-                onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); }}
+                onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
               />
             )}
             {tab === "warehouse" && (
@@ -243,7 +258,7 @@ export default function App() {
             )}
             {tab === "items"     && <ItemsSection items={items} setItems={setItems} categories={categories} setCategories={setCategories} />}
             {tab === "markets"   && <MarketsSection markets={markets} setMarkets={setMarkets} />}
-            {tab === "reports"   && <ReportsSection items={items} markets={markets} purchases={purchases} warehouse={warehouse} initialMonth={reportsMonth} />}
+            {tab === "reports"   && <ReportsSection items={items} markets={markets} purchases={purchases} warehouse={warehouse} initialMonth={reportsMonth} onGoToHistoryItem={handleGoToHistoryItem} />}
             {tab === "backup"    && (
               <BackupSection
                 items={items} markets={markets} purchases={purchases}

@@ -528,64 +528,238 @@ export function BarChart({ data, colorClass = "bg-teal-500", formatValue }: BarC
   );
 }
 
-// ─── LineChart (price evolution) ──────────────────────────────────────────────
-interface LineChartProps {
-  data: { label: string; value: number }[];
-  formatValue: (v: number) => string;
-  colorClass?: string;
+// ─── LineChart (price evolution — interactive) ────────────────────────────────
+export interface LineChartPoint {
+  label: string;       // date label shown on X axis  (e.g. "jan/25")
+  value: number;       // price value
+  date?: string;       // ISO date "YYYY-MM-DD" for full tooltip
+  market?: string;     // market name for tooltip
+  qty?: string;        // e.g. "2 emb" for tooltip
+  discount?: string;   // discount info
 }
 
-export function LineChart({ data, formatValue, colorClass = "teal" }: LineChartProps) {
-  const { isDark } = useContext(ThemeCtx);
-  if (!data || data.length < 2) return null;
-  const values = data.map((d) => d.value);
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-  const W = 300;
-  const H = 80;
-  const pad = 8;
-  const innerW = W - pad * 2;
-  const innerH = H - pad * 2;
+interface LineChartProps {
+  data: LineChartPoint[];
+  formatValue: (v: number) => string;
+  colorClass?: string;
+  unit?: string;       // e.g. "R$/kg" shown in header
+}
 
-  const points = data.map((d, i) => ({
-    x: pad + (i / (data.length - 1)) * innerW,
-    y: pad + (1 - (d.value - minV) / range) * innerH,
+export function LineChart({ data, formatValue, colorClass = "teal", unit }: LineChartProps) {
+  const { isDark } = useContext(ThemeCtx);
+  const [active, setActive] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  if (!data || data.length < 2) return null;
+
+  const values   = data.map(d => d.value);
+  const minV     = Math.min(...values);
+  const maxV     = Math.max(...values);
+  const range    = maxV - minV || 1;
+  const W        = 320;
+  const H        = 110;
+  const padL     = 8;
+  const padR     = 8;
+  const padT     = 14;
+  const padB     = 6;
+  const innerW   = W - padL - padR;
+  const innerH   = H - padT - padB;
+
+  const color     = colorClass === "teal" ? "#14b8a6" : colorClass === "blue" ? "#60a5fa" : colorClass === "red" ? "#f87171" : "#14b8a6";
+  const pts = data.map((d, i) => ({
+    x: padL + (i / (data.length - 1)) * innerW,
+    y: padT + (1 - (d.value - minV) / range) * innerH,
     ...d,
   }));
 
-  const polyline = points.map((p) => `${p.x},${p.y}`).join(" ");
-  const color = colorClass === "teal" ? "#14b8a6" : "#60a5fa";
-  const colorFill = colorClass === "teal" ? "#14b8a6" : "#60a5fa";
+  const polyline  = pts.map(p => `${p.x},${p.y}`).join(" ");
+  const areaPath  = `${padL},${H - padB} ${polyline} ${W - padR},${H - padB}`;
+
+  // Min/max annotation indices
+  const minIdx = values.indexOf(minV);
+  const maxIdx = values.indexOf(maxV);
+  const firstV = values[0];
+  const lastV  = values[values.length - 1];
+  const trend  = lastV - firstV;
+
+  // Touch/click: find nearest point
+  function handleSvgInteraction(e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
+    const relX = ((clientX - rect.left) / rect.width) * W;
+    let nearest = 0;
+    let nearestDist = Infinity;
+    pts.forEach((p, i) => { const d = Math.abs(p.x - relX); if (d < nearestDist) { nearestDist = d; nearest = i; } });
+    setActive(nearest);
+  }
+
+  const ap = active !== null ? pts[active] : null;
+  const ad = active !== null ? data[active] : null;
+
+  // Tooltip horizontal position clamped to SVG bounds
+  const tooltipX = ap ? Math.max(50, Math.min(W - 50, ap.x)) : W / 2;
+  const tooltipAbove = ap ? ap.y > H / 2 : true;
 
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
+    <div className="select-none">
+      {/* Legend strip */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-black uppercase tracking-wide ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            {unit || "Evolução"}
+          </span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+            trend > 0
+              ? isDark ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-600"
+              : isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-50 text-teal-600"
+          }`}>
+            {trend > 0 ? "▲" : "▼"} {formatValue(Math.abs(trend))}
+          </span>
+        </div>
+        <span className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+          {data.length} compra{data.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* SVG chart */}
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full cursor-crosshair touch-none"
+        style={{ height: H }}
+        onMouseMove={handleSvgInteraction}
+        onTouchMove={handleSvgInteraction}
+        onMouseLeave={() => setActive(null)}
+        onTouchEnd={() => setTimeout(() => setActive(null), 1800)}
+        onClick={handleSvgInteraction}
+      >
         <defs>
-          <linearGradient id={`fill-${colorClass}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={colorFill} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={colorFill} stopOpacity="0" />
+          <linearGradient id={`grad-${colorClass}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {/* Area fill */}
-        <polygon
-          points={`${points[0].x},${H} ${polyline} ${points[points.length - 1].x},${H}`}
-          fill={`url(#fill-${colorClass})`}
-        />
-        {/* Line */}
-        <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-        {/* Dots */}
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill={color} />
+
+        {/* Horizontal guide lines */}
+        {[0.25, 0.5, 0.75].map(f => (
+          <line key={f}
+            x1={padL} y1={padT + f * innerH} x2={W - padR} y2={padT + f * innerH}
+            stroke={isDark ? "#1e293b" : "#f1f5f9"} strokeWidth="1"
+          />
         ))}
+
+        {/* Area fill */}
+        <polygon points={areaPath} fill={`url(#grad-${colorClass})`} />
+
+        {/* Line */}
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* Min/max labels */}
+        {minIdx !== maxIdx && (
+          <>
+            <text x={pts[minIdx].x} y={pts[minIdx].y + 11} textAnchor="middle"
+              fontSize="7.5" fill={isDark ? "#2dd4bf" : "#0d9488"} fontWeight="700">
+              min
+            </text>
+            <text x={pts[maxIdx].x} y={pts[maxIdx].y - 5} textAnchor="middle"
+              fontSize="7.5" fill={isDark ? "#f87171" : "#dc2626"} fontWeight="700">
+              max
+            </text>
+          </>
+        )}
+
+        {/* Vertical cursor line */}
+        {ap && (
+          <line x1={ap.x} y1={padT} x2={ap.x} y2={H - padB}
+            stroke={color} strokeWidth="1" strokeDasharray="3 2" opacity="0.5" />
+        )}
+
+        {/* Dots — all small, active big */}
+        {pts.map((p, i) => {
+          const isMin  = i === minIdx;
+          const isMax  = i === maxIdx;
+          const isLast = i === pts.length - 1;
+          const isAct  = i === active;
+          const dotColor = isMin ? (isDark ? "#2dd4bf" : "#0d9488") : isMax ? (isDark ? "#f87171" : "#dc2626") : color;
+          return (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r={isAct ? 6 : isMin || isMax || isLast ? 4 : 3}
+                fill={isAct ? (isDark ? "#0f172a" : "#fff") : dotColor}
+                stroke={dotColor} strokeWidth={isAct ? 2.5 : 0}
+                style={{ transition: "r 120ms ease" }}
+              />
+              {/* Invisible hit area */}
+              <circle cx={p.x} cy={p.y} r="18" fill="transparent" />
+            </g>
+          );
+        })}
+
+        {/* Tooltip bubble */}
+        {ap && ad && (() => {
+          const lines: string[] = [];
+          if (ad.date) lines.push(new Date(ad.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" }));
+          if (ad.market) lines.push(ad.market);
+          if (ad.qty) lines.push(ad.qty);
+          if (ad.discount) lines.push(ad.discount);
+          const bw = 110;
+          const lineH = 11;
+          const bh = 22 + lines.length * lineH;
+          const bx = Math.max(padL, Math.min(W - padR - bw, tooltipX - bw / 2));
+          const by = tooltipAbove ? ap.y - bh - 10 : ap.y + 10;
+          return (
+            <g>
+              <rect x={bx} y={by} width={bw} height={bh} rx="6"
+                fill={isDark ? "#0f172a" : "#fff"}
+                stroke={color} strokeWidth="1.2" opacity="0.97"
+                style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.35))" }}
+              />
+              {/* Price — big */}
+              <text x={bx + bw / 2} y={by + 14} textAnchor="middle"
+                fontSize="12" fontWeight="800" fill={color}>
+                {formatValue(ad.value)}
+              </text>
+              {/* Extra lines */}
+              {lines.map((line, li) => (
+                <text key={li} x={bx + bw / 2} y={by + 25 + li * lineH} textAnchor="middle"
+                  fontSize="8.5" fill={isDark ? "#94a3b8" : "#64748b"}>
+                  {line}
+                </text>
+              ))}
+            </g>
+          );
+        })()}
       </svg>
-      <div className="flex justify-between mt-1">
-        <span className="text-[9px] text-slate-600">{data[0].label}</span>
-        <span className="text-[9px] text-slate-600">{data[data.length - 1].label}</span>
+
+      {/* X-axis labels — show first, last, and active */}
+      <div className="relative mt-1" style={{ height: 14 }}>
+        <span className={`absolute left-0 text-[9px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data[0].label}</span>
+        {active !== null && active > 0 && active < data.length - 1 && (
+          <span
+            className={`absolute text-[9px] font-bold transition-all ${isDark ? "text-slate-300" : "text-slate-600"}`}
+            style={{ left: `${(pts[active].x / W) * 100}%`, transform: "translateX(-50%)" }}
+          >
+            {data[active].label}
+          </span>
+        )}
+        <span className={`absolute right-0 text-[9px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data[data.length - 1].label}</span>
       </div>
-      <div className="flex justify-between mt-0.5">
-        <span className={`text-[10px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>{formatValue(data[0].value)}</span>
-        <span className={`text-[10px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>{formatValue(data[data.length - 1].value)}</span>
+
+      {/* Bottom summary row */}
+      <div className={`flex items-center justify-between mt-2 pt-2 border-t ${isDark ? "border-white/5" : "border-black/5"}`}>
+        <div className="flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full`} style={{ background: isDark ? "#2dd4bf" : "#0d9488" }} />
+          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>mín {formatValue(minV)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full bg-green-500`} />
+          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>méd {formatValue(values.reduce((a, b) => a + b, 0) / values.length)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full`} style={{ background: isDark ? "#f87171" : "#dc2626" }} />
+          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>máx {formatValue(maxV)}</span>
+        </div>
       </div>
     </div>
   );

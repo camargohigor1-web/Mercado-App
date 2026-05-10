@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
-import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal } from "./ui";
+import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
+import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
 import type { Item, Market, Purchase, WarehouseItem, ShoppingListEntry, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
 
@@ -15,10 +16,11 @@ interface ShoppingListSectionProps {
   onConvertToPurchase: (lines: PurchaseLine[]) => void;
   onGoToItems?: () => void;
   onGoToHistoryPurchase?: (purchaseId: string) => void;
+  onGoToHistoryPurchaseWithProduct?: (purchaseId: string, itemId: string) => void;
 }
 
 export function ShoppingListSection({
-  items, markets, purchases, warehouse, shoppingList, setShoppingList, onConvertToPurchase, onGoToItems, onGoToHistoryPurchase,
+  items, markets, purchases, warehouse, shoppingList, setShoppingList, onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
 }: ShoppingListSectionProps) {
   const { isDark } = useTheme();
   const [listMode, setListMode] = useState<"plan" | "market">("plan");
@@ -554,34 +556,71 @@ export function ShoppingListSection({
                     )}
                   </div>
 
+                  {/* Price evolution chart */}
+                  {allEntries.length >= 2 && (() => {
+                    const chronoEntries = [...allEntries].sort((a: any, b: any) => a.date.localeCompare(b.date));
+                    const priceEvolution: LineChartPoint[] = chronoEntries.map((e: any) => ({
+                      label: new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+                      value: item.type === "bulk" ? (e.pricePerUnit || 0) / factor : (e.pricePerPkgAfterDiscount ?? e.pricePerPkg),
+                      date: e.date,
+                      market: e.market,
+                      qty: item.type === "bulk" ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}` : `${e.numPkgs} emb`,
+                      discount: e.discountTotal > 0 ? `Desc: ${fmt(e.discountTotal)}` : undefined,
+                    }));
+                    return (
+                      <div className={`rounded-2xl border p-3 ${isDark ? "bg-slate-900 border-white/5" : "bg-slate-50 border-black/6"}`}>
+                        <LineChart data={priceEvolution} formatValue={fmt} unit={item.type === "bulk" ? `R$/${du}` : "R$/emb"} />
+                      </div>
+                    );
+                  })()}
+
                   {recentEntries.length > 0 && (
                     <div>
                       <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Últimas compras</p>
                       <div className="space-y-2">
-                        {recentEntries.map((e, i) => (
-                          <div
-                            key={i}
-                            onClick={() => onGoToHistoryPurchase && onGoToHistoryPurchase(e.purchaseId)}
-                            className={`flex items-center justify-between px-3 py-2 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl ${onGoToHistoryPurchase ? "cursor-pointer active:scale-95 transition-transform hover:border-teal-500/40" : ""}`}
-                          >
-                            <div>
-                              <p className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{e.market}</p>
-                              <p className="text-[10px] text-slate-500">{new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR")}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-right">
-                                <p className="text-xs font-bold text-teal-400">
-                                  {item.type === "bulk"
-                                    ? `${fmt((e.pricePerUnit || 0) / factor)}/${du}`
-                                    : `${fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb`
-                                  }
-                                </p>
-                                {e.discountTotal > 0 && <p className="text-[10px] text-amber-400">c/ desc</p>}
+                        {recentEntries.map((e: any, i: number) => {
+                          const canNav = !!(onGoToHistoryPurchaseWithProduct || onGoToHistoryPurchase);
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => {
+                                if (onGoToHistoryPurchaseWithProduct) {
+                                  setDecisionItem(null);
+                                  onGoToHistoryPurchaseWithProduct(e.purchaseId, item.id);
+                                } else if (onGoToHistoryPurchase) {
+                                  setDecisionItem(null);
+                                  onGoToHistoryPurchase(e.purchaseId);
+                                }
+                              }}
+                              className={`flex items-center justify-between px-3 py-2.5 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl ${canNav ? "cursor-pointer active:scale-95 transition-transform hover:border-teal-500/40" : ""}`}
+                            >
+                              <div>
+                                <p className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{e.market}</p>
+                                <p className="text-[10px] text-slate-500">{new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" })}</p>
                               </div>
-                              {onGoToHistoryPurchase && <Icon name="chevron" size={12} />}
+                              <div className="flex items-center gap-2">
+                                <div className="text-right">
+                                  <p className="text-xs font-bold text-teal-400">
+                                    {item.type === "bulk"
+                                      ? `${fmt((e.pricePerUnit || 0) / factor)}/${du}`
+                                      : `${fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb`
+                                    }
+                                  </p>
+                                  {e.discountTotal > 0 && <p className="text-[10px] text-amber-400">c/ desc</p>}
+                                  <p className="text-[10px] text-slate-500">
+                                    {item.type === "bulk" ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}` : `${e.numPkgs} emb`}
+                                  </p>
+                                </div>
+                                {canNav && (
+                                  <div className={`flex items-center gap-0.5 ${isDark ? "text-teal-500" : "text-teal-600"}`}>
+                                    <Icon name="history" size={11} />
+                                    <Icon name="chevron" size={12} />
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
