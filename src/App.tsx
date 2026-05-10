@@ -238,7 +238,7 @@ export default function App() {
             )}
             {tab === "warehouse" && (
               <WarehouseSection
-                items={items} purchases={purchases} warehouse={warehouse}
+                items={items} purchases={purchases} markets={markets} warehouse={warehouse}
                 setWarehouse={setWarehouse} categories={categories}
                 shoppingList={list} setShoppingList={setList}
                 onGoToNewPurchase={handleGoToNewPurchase}

@@ -4,10 +4,10 @@ import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, StatBox, ConfirmModal } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getWarehouseUnit, calcStats, getLowStockItems } from "../utils";
-import type { Item, Purchase, ShoppingListEntry, WarehouseItem } from "../types";
+import type { Item, Market, Purchase, ShoppingListEntry, WarehouseItem } from "../types";
 
 interface WarehouseSectionProps {
-  items: Item[]; purchases: Purchase[]; warehouse: WarehouseItem[];
+  items: Item[]; purchases: Purchase[]; markets: Market[]; warehouse: WarehouseItem[];
   setWarehouse: (w: WarehouseItem[]) => void; categories: string[];
   shoppingList: ShoppingListEntry[]; setShoppingList: (l: ShoppingListEntry[]) => void;
   onGoToNewPurchase?: () => void; onSelectionChange?: (count: number) => void;
@@ -17,7 +17,7 @@ interface WarehouseSectionProps {
 type SortPrimary = "category" | "alpha";
 type SortSecondary = "none" | "stock_asc" | "stock_desc" | "days_asc";
 
-export function WarehouseSection({ items, purchases, warehouse, setWarehouse, categories, shoppingList, setShoppingList, onGoToNewPurchase, onSelectionChange, initialSearch }: WarehouseSectionProps) {
+export function WarehouseSection({ items, purchases, markets, warehouse, setWarehouse, categories, shoppingList, setShoppingList, onGoToNewPurchase, onSelectionChange, initialSearch }: WarehouseSectionProps) {
   const { isDark } = useTheme();
   const [view, setView] = useState<"current" | "alerts">("current");
   const [search, setSearch] = useState(initialSearch?.trim() ?? "");
@@ -247,6 +247,58 @@ export function WarehouseSection({ items, purchases, warehouse, setWarehouse, ca
           {stats && <StatBox label="Consumo médio/mês" val={`${fmtN(avgMonthlyDisplay, item.type === "packaged" ? 1 : 2)} ${du}`} color="blue" />}
           {stats && <StatBox label="Último preço" val={item.type === "packaged" ? `${fmt(stats.lastPrice)}/emb` : fmt(stats.lastPrice)} />}
         </div>
+        {(() => {
+          // Last purchases of this item (sorted most recent first)
+          const lastPurchases = [...purchases]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .flatMap(p => {
+              const line = p.lines.find(l => l.itemId === selectedId);
+              return line ? [{ p, line }] : [];
+            })
+            .slice(0, 3);
+          if (!lastPurchases.length) return null;
+          const getMktName = (id: string) => markets.find((m: Market) => m.id === id)?.name || "Mercado";
+          return (
+            <div>
+              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Últimas compras</p>
+              <div className="space-y-2">
+                {lastPurchases.map(({ p, line }) => {
+                  const factor2 = item.type === "bulk" ? getDisplayFactor(item) : 1;
+                  return (
+                    <Card key={p.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <Badge color="teal">{new Date(p.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" })}</Badge>
+                            <Badge>{getMktName(p.marketId)}</Badge>
+                          </div>
+                          {item.type === "bulk" ? (
+                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                              {line.numPkgs} emb · {fmtN((line.totalQty || 0) * factor2, 2)} {du}
+                              <span className="text-teal-400 font-bold ml-2">{fmt((line.pricePerUnit || 0) / factor2)}/{du}</span>
+                            </p>
+                          ) : (
+                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                              {line.numPkgs} emb × {fmt(line.pricePerPkg)}/emb
+                            </p>
+                          )}
+                          {line.discountTotal > 0 && (
+                            <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1">
+                              <Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}
+                            </p>
+                          )}
+                          {p.note && <p className={`text-xs italic mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{p.note}</p>}
+                        </div>
+                        <p className="text-teal-400 font-black text-sm flex-shrink-0">{fmt(line.total)}</p>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {sortedEntries.length > 0 && (
           <div>
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Histórico de atualizações</p>

@@ -411,6 +411,12 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
             )}
             <h2 className={`text-base font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{getMkt(p.marketId)}</h2>
             <p className="text-xs text-slate-500">{new Date(p.date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+            {p.note && (
+              <div className={`flex items-start gap-1.5 mt-1.5 px-2.5 py-1.5 rounded-lg ${isDark ? "bg-slate-800 border border-slate-700" : "bg-slate-100 border border-slate-200"}`}>
+                <Icon name="note" size={11} />
+                <p className={`text-xs italic leading-relaxed ${isDark ? "text-slate-400" : "text-slate-500"}`}>{p.note}</p>
+              </div>
+            )}
           </div>
         </div>
         <div className="space-y-2">
@@ -619,6 +625,7 @@ export function HistorySection({ items, markets, purchases, warehouse, onGoToNew
                         <div className="flex-1 min-w-0">
                           <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>{getMkt(p.marketId)}</p>
                           <p className="text-slate-500 text-xs mt-0.5">{p.lines.length} {p.lines.length === 1 ? "item" : "itens"}</p>
+                          {p.note && <p className={`text-xs mt-0.5 truncate italic ${isDark ? "text-slate-500" : "text-slate-400"}`}>{p.note}</p>}
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="text-teal-400 font-black">{fmt(p.total)}</p>
