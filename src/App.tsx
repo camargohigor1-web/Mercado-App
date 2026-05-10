@@ -15,7 +15,6 @@ import { RightDrawer } from "./components/RightDrawer";
 import { KEYS, load, save, DEFAULT_CATEGORIES } from "./utils";
 import type { Item, Market, Purchase, ShoppingListEntry, WarehouseItem, PurchaseLine } from "./types";
 
-// ─── Tab config ───────────────────────────────────────────────────────────────
 const EXTRA_TABS = ["purchases", "markets", "backup", "reports", "items"];
 
 const TITLES: Record<string, string> = {
@@ -26,40 +25,38 @@ const TITLES: Record<string, string> = {
   warehouse: "Armazém",
   items:     "Produtos",
   markets:   "Mercados",
-  backup:    "Backup e Restauração",
-  reports:   "Relatório de Compras",
+  backup:    "Backup",
+  reports:   "Relatório",
 };
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+
 export default function App() {
-  const [tab, setTab]       = useState("home");
+  const [tab, setTab]           = useState("home");
   const [drawerOpen, setDrawer] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [theme, setThemeRaw]    = useState<string>(() => load(KEYS.theme, "dark"));
 
-  const [items,     setItemsRaw]     = useState<Item[]>            (() => load(KEYS.items,        []));
-  const [markets,   setMarketsRaw]   = useState<Market[]>          (() => load(KEYS.markets,      []));
-  const [purchases, setPurchasesRaw] = useState<Purchase[]>        (() => load(KEYS.purchases,    []));
-  const [list,      setListRaw]      = useState<ShoppingListEntry[]>(() => load(KEYS.shoppingList, []));
-  const [warehouse, setWarehouseRaw] = useState<WarehouseItem[]>   (() => load(KEYS.warehouse,    []));
+  const [items,      setItemsRaw]      = useState<Item[]>            (() => load(KEYS.items,        []));
+  const [markets,    setMarketsRaw]    = useState<Market[]>          (() => load(KEYS.markets,      []));
+  const [purchases,  setPurchasesRaw]  = useState<Purchase[]>        (() => load(KEYS.purchases,    []));
+  const [list,       setListRaw]       = useState<ShoppingListEntry[]>(() => load(KEYS.shoppingList, []));
+  const [warehouse,  setWarehouseRaw]  = useState<WarehouseItem[]>   (() => load(KEYS.warehouse,    []));
   const [categories, setCategoriesRaw] = useState<string[]>(() => {
     const stored = load(KEYS.categories, null);
     return stored ?? DEFAULT_CATEGORIES;
   });
 
-  // Persisted setters
-  const setTheme     = useCallback((v: string)              => { setThemeRaw(v);        save(KEYS.theme,        v); }, []);
-  const setItems     = useCallback((v: Item[])              => { setItemsRaw(v);         save(KEYS.items,        v); }, []);
-  const setMarkets   = useCallback((v: Market[])            => { setMarketsRaw(v);       save(KEYS.markets,      v); }, []);
-  const setPurchases = useCallback((v: Purchase[])          => { setPurchasesRaw(v);     save(KEYS.purchases,    v); }, []);
-  const setList      = useCallback((v: ShoppingListEntry[]) => { setListRaw(v);          save(KEYS.shoppingList, v); }, []);
-  const setWarehouse = useCallback((v: WarehouseItem[])     => { setWarehouseRaw(v);     save(KEYS.warehouse,    v); }, []);
-  const setCategories = useCallback((v: string[])           => { setCategoriesRaw(v);    save(KEYS.categories,   v); }, []);
+  const setTheme     = useCallback((v: string)              => { setThemeRaw(v);    save(KEYS.theme,        v); }, []);
+  const setItems     = useCallback((v: Item[])              => { setItemsRaw(v);    save(KEYS.items,        v); }, []);
+  const setMarkets   = useCallback((v: Market[])            => { setMarketsRaw(v);  save(KEYS.markets,      v); }, []);
+  const setPurchases = useCallback((v: Purchase[])          => { setPurchasesRaw(v); save(KEYS.purchases,   v); }, []);
+  const setList      = useCallback((v: ShoppingListEntry[]) => { setListRaw(v);     save(KEYS.shoppingList, v); }, []);
+  const setWarehouse = useCallback((v: WarehouseItem[])     => { setWarehouseRaw(v); save(KEYS.warehouse,   v); }, []);
+  const setCategories = useCallback((v: string[])           => { setCategoriesRaw(v); save(KEYS.categories, v); }, []);
 
-  // ── Convert shopping list → new purchase ───────────────────────────────────
-  const [pendingLines, setPendingLines] = useState<PurchaseLine[] | null>(null);
-  const [pendingKey, setPendingKey] = useState(0);
-  const [reportsMonth, setReportsMonth] = useState<string | undefined>(undefined);
+  const [pendingLines,  setPendingLines]  = useState<PurchaseLine[] | null>(null);
+  const [pendingKey,    setPendingKey]    = useState(0);
+  const [reportsMonth,  setReportsMonth]  = useState<string | undefined>(undefined);
   const [openPurchaseId, setOpenPurchaseId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
   const [warehouseSelectionCount, setWarehouseSelectionCount] = useState(0);
@@ -72,11 +69,9 @@ export default function App() {
 
   function handlePurchaseCreatedFromList() {
     setPendingLines(null);
-    // Clear checked items from list after converting
     setList(list.filter(l => l.saved));
   }
 
-  // ── Repeat purchase from home ───────────────────────────────────────────────
   function handleRepeatPurchase(purchase: Purchase) {
     setPendingLines(purchase.lines.map(l => ({ ...l })));
     setPendingKey(Date.now());
@@ -99,7 +94,6 @@ export default function App() {
     setTab("history");
   }
 
-  // ── Tab navigation guard (warehouse selection) ─────────────────────────────
   function navigateTo(dest: string) {
     if (tab === "warehouse" && warehouseSelectionCount > 0 && dest !== "warehouse") {
       setPendingTab(dest);
@@ -108,239 +102,227 @@ export default function App() {
     }
   }
 
-  // ── Restore from backup ────────────────────────────────────────────────────
   function handleRestore(data: {
-    items: Item[];
-    markets: Market[];
-    purchases: Purchase[];
-    shoppingList: ShoppingListEntry[];
-    warehouse: WarehouseItem[];
-    categories?: string[];
+    items: Item[]; markets: Market[]; purchases: Purchase[];
+    shoppingList: ShoppingListEntry[]; warehouse: WarehouseItem[]; categories?: string[];
   }) {
-    setItems(data.items);
-    setMarkets(data.markets);
-    setPurchases(data.purchases);
-    setList(data.shoppingList);
-    setWarehouse(data.warehouse || []);
+    setItems(data.items); setMarkets(data.markets); setPurchases(data.purchases);
+    setList(data.shoppingList); setWarehouse(data.warehouse || []);
     if (data.categories) setCategories(data.categories);
     setTab("shopping");
   }
 
-  const isDark   = theme === "dark";
-  const isExtra  = EXTRA_TABS.includes(tab);
+  const isDark  = theme === "dark";
+  const isExtra = EXTRA_TABS.includes(tab);
+
+  const bg      = isDark ? "bg-slate-950" : "bg-slate-50";
+  const surface = isDark ? "bg-slate-950/95" : "bg-slate-50/95";
+  const border  = isDark ? "border-white/5" : "border-black/8";
+  const text    = isDark ? "text-slate-100" : "text-slate-900";
 
   return (
     <ThemeCtx.Provider value={{ isDark }}>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
-      <div className={`min-h-screen ${isDark ? "bg-slate-950 text-slate-100" : "bg-white text-slate-900"} flex flex-col max-w-lg mx-auto`}>
+      <div className={`min-h-screen ${bg} ${text} flex flex-col max-w-lg mx-auto relative`}>
 
-        {/* ── Header ─────────────────────────────────────────────────────────── */}
-        <div className={`sticky top-0 z-20 ${isDark ? "bg-slate-950/95" : "bg-white/95"} backdrop-blur px-4 pt-6 pb-3 ${isDark ? "border-b border-slate-900" : "border-b border-slate-100"}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/30 flex-shrink-0 overflow-hidden" style={{ background: "linear-gradient(135deg,#0f766e,#14b8a6)" }}>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <header className={`sticky top-0 z-20 ${surface} backdrop-blur-xl border-b ${border} px-4 pt-safe`}
+          style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 20px)` }}>
+          <div className="flex items-center gap-3 pb-3">
+            {/* App icon */}
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden shadow-sm"
+              style={{ background:"linear-gradient(135deg,#0f766e,#14b8a6)" }}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/>
               </svg>
             </div>
+
+            {/* Title area */}
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-black text-teal-500 uppercase tracking-widest leading-none">MercadoApp</p>
-              <p className={`text-sm font-black truncate ${isDark ? "text-slate-200" : "text-slate-800"} leading-tight mt-0.5`}>{TITLES[tab]}</p>
+              <div className="flex items-center gap-2">
+                {isExtra && (
+                  <button
+                    onClick={() => navigateTo("home")}
+                    className={`p-1 -ml-0.5 rounded-lg transition-colors ${isDark ? "text-slate-500 hover:text-slate-300 hover:bg-white/5" : "text-slate-400 hover:text-slate-600 hover:bg-black/5"}`}
+                  >
+                    <Icon name="back" size={15} />
+                  </button>
+                )}
+                <div className="min-w-0">
+                  {!isExtra && (
+                    <p className="text-[9px] font-black text-teal-500 uppercase tracking-[0.2em] leading-none">
+                      MercadoApp
+                    </p>
+                  )}
+                  <p className={`text-sm font-black truncate leading-tight ${isExtra ? "" : "mt-0.5"} ${text}`}>
+                    {TITLES[tab]}
+                  </p>
+                </div>
+              </div>
             </div>
-            {isExtra && (
+
+            {/* Right — action zone */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {/* Shopping list badge */}
+              {tab === "home" && list.filter(l => !l.saved).length > 0 && (
+                <button
+                  onClick={() => navigateTo("shopping")}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all press-scale ${isDark ? "bg-teal-500/15 text-teal-400 border border-teal-500/25" : "bg-teal-50 text-teal-700 border border-teal-200"}`}
+                >
+                  <Icon name="list" size={12} />
+                  {list.filter(l => !l.saved).length}
+                </button>
+              )}
+              {/* Drawer button */}
               <button
-                onClick={() => navigateTo("home")}
-                className={`${isDark ? "text-slate-500 hover:text-slate-200 hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"} p-1.5 rounded-xl transition-colors flex-shrink-0`}
+                onClick={() => setDrawer(true)}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all press-scale ${isDark ? "text-slate-500 hover:text-slate-300 hover:bg-white/5" : "text-slate-400 hover:text-slate-600 hover:bg-black/5"} ${isExtra ? "text-teal-400" : ""}`}
               >
-                <Icon name="x" size={16} />
+                <Icon name="menu" size={17} />
               </button>
+            </div>
+          </div>
+        </header>
+
+        {/* ── Content ─────────────────────────────────────────────────────── */}
+        <main className="flex-1 overflow-y-auto px-4 py-4 pb-28">
+          <div key={tab} className="animate-fade-slide-up">
+            {tab === "home" && (
+              <HomeSection
+                items={items} markets={markets} purchases={purchases}
+                warehouse={warehouse} shoppingList={list}
+                onGoToNewPurchase={handleGoToNewPurchase}
+                onGoToHistory={() => setTab("history")}
+                onGoToWarehouse={() => setTab("warehouse")}
+                onGoToItems={() => setTab("items")}
+                onRepeatPurchase={handleRepeatPurchase}
+                onGoToReports={handleGoToReports}
+                onGoToHistoryPurchase={handleGoToHistoryPurchase}
+              />
+            )}
+            {tab === "shopping" && (
+              <ShoppingListSection
+                items={items} markets={markets} purchases={purchases}
+                warehouse={warehouse} shoppingList={list}
+                setShoppingList={setList}
+                onConvertToPurchase={handleConvertToPurchase}
+                onGoToItems={() => setTab("items")}
+                onGoToHistoryPurchase={handleGoToHistoryPurchase}
+              />
+            )}
+            {tab === "history" && (
+              <HistorySection
+                items={items} markets={markets} purchases={purchases}
+                warehouse={warehouse}
+                onGoToNewPurchase={handleGoToNewPurchase}
+                onRepeatPurchase={handleRepeatPurchase}
+                initialPurchaseId={openPurchaseId}
+                initialHighlightedProductId={highlightedProductId}
+                onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); }}
+              />
+            )}
+            {tab === "warehouse" && (
+              <WarehouseSection
+                items={items} purchases={purchases} warehouse={warehouse}
+                setWarehouse={setWarehouse} categories={categories}
+                shoppingList={list} setShoppingList={setList}
+                onGoToNewPurchase={handleGoToNewPurchase}
+                onSelectionChange={setWarehouseSelectionCount}
+              />
+            )}
+            {tab === "purchases" && (
+              <PurchasesSection
+                key={pendingKey}
+                items={items} markets={markets} purchases={purchases}
+                setPurchases={setPurchases} setItems={setItems}
+                warehouse={warehouse} setWarehouse={setWarehouse}
+                categories={categories} setCategories={setCategories}
+                initialLines={pendingLines ?? undefined}
+                onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
+              />
+            )}
+            {tab === "items"     && <ItemsSection items={items} setItems={setItems} categories={categories} setCategories={setCategories} />}
+            {tab === "markets"   && <MarketsSection markets={markets} setMarkets={setMarkets} />}
+            {tab === "reports"   && <ReportsSection items={items} markets={markets} purchases={purchases} warehouse={warehouse} initialMonth={reportsMonth} />}
+            {tab === "backup"    && (
+              <BackupSection
+                items={items} markets={markets} purchases={purchases}
+                shoppingList={list} warehouse={warehouse} categories={categories}
+                onRestore={handleRestore}
+              />
             )}
           </div>
-        </div>
+        </main>
 
-        {/* ── Content ────────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
-          <div key={tab} className="animate-fade-slide-up">
-          {tab === "home" && (
-            <HomeSection
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              warehouse={warehouse}
-              shoppingList={list}
-              onGoToNewPurchase={handleGoToNewPurchase}
-              onGoToHistory={() => setTab("history")}
-              onGoToWarehouse={() => setTab("warehouse")}
-              onGoToItems={() => setTab("items")}
-              onRepeatPurchase={handleRepeatPurchase}
-              onGoToReports={handleGoToReports}
-              onGoToHistoryPurchase={handleGoToHistoryPurchase}
-            />
-          )}
-          {tab === "shopping" && (
-            <ShoppingListSection
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              warehouse={warehouse}
-              shoppingList={list}
-              setShoppingList={setList}
-              onConvertToPurchase={handleConvertToPurchase}
-              onGoToItems={() => setTab("items")}
-              onGoToHistoryPurchase={handleGoToHistoryPurchase}
-            />
-          )}
-          {tab === "history" && (
-            <HistorySection
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              warehouse={warehouse}
-              onGoToNewPurchase={handleGoToNewPurchase}
-              onRepeatPurchase={handleRepeatPurchase}
-              initialPurchaseId={openPurchaseId}
-              initialHighlightedProductId={highlightedProductId}
-              onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); }}
-            />
-          )}
-          {tab === "warehouse" && (
-            <WarehouseSection
-              items={items}
-              purchases={purchases}
-              warehouse={warehouse}
-              setWarehouse={setWarehouse}
-              categories={categories}
-              shoppingList={list}
-              setShoppingList={setList}
-              onGoToNewPurchase={handleGoToNewPurchase}
-              onSelectionChange={setWarehouseSelectionCount}
-            />
-          )}
-          {tab === "purchases" && (
-            <PurchasesSection
-              key={pendingKey}
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              setPurchases={setPurchases}
-              setItems={setItems}
-              warehouse={warehouse}
-              setWarehouse={setWarehouse}
-              categories={categories}
-              setCategories={setCategories}
-              initialLines={pendingLines ?? undefined}
-              onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
-            />
-          )}
-          {tab === "items" && (
-            <ItemsSection
-              items={items}
-              setItems={setItems}
-              categories={categories}
-              setCategories={setCategories}
-            />
-          )}
-          {tab === "markets" && (
-            <MarketsSection
-              markets={markets}
-              setMarkets={setMarkets}
-            />
-          )}
-          {tab === "reports" && (
-            <ReportsSection
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              warehouse={warehouse}
-              initialMonth={reportsMonth}
-            />
-          )}
-          {tab === "backup" && (
-            <BackupSection
-              items={items}
-              markets={markets}
-              purchases={purchases}
-              shoppingList={list}
-              warehouse={warehouse}
-              categories={categories}
-              onRestore={handleRestore}
-            />
-          )}
-          </div>{/* end animate wrapper */}
-        </div>
+        {/* ── Bottom Nav ──────────────────────────────────────────────────── */}
+        <nav className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg ${surface} backdrop-blur-xl border-t ${border} z-20 nav-safe`}>
+          <div className="flex items-end pt-1 pb-2">
 
-        {/* ── Bottom Nav ─────────────────────────────────────────────────────── */}
-        <div className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg ${isDark ? "bg-slate-950/95" : "bg-white/95"} backdrop-blur ${isDark ? "border-t border-slate-900" : "border-t border-slate-200"} z-20`}>
-          <div className="flex items-end pb-2">
+            <NavTab id="shopping"  label="Lista"   icon="list"      active={tab==="shopping"}  isDark={isDark} onClick={() => navigateTo("shopping")}  />
+            <NavTab id="history"   label="Histórico" icon="history"  active={tab==="history"}   isDark={isDark} onClick={() => navigateTo("history")}   />
 
-            {/* Lista */}
-            <NavTab id="shopping" label="Lista" icon="list" active={tab === "shopping"} isDark={isDark} onClick={() => navigateTo("shopping")} />
-
-            {/* Histórico */}
-            <NavTab id="history" label="Hist." icon="history" active={tab === "history"} isDark={isDark} onClick={() => navigateTo("history")} />
-
-            {/* Início — centro destacado */}
-            <div className="flex-1 flex flex-col items-center pb-1">
+            {/* Home FAB */}
+            <div className="flex-1 flex flex-col items-center pb-0.5">
               <button
                 onClick={() => navigateTo("home")}
-                className={`w-14 h-14 -mt-5 rounded-2xl flex items-center justify-center shadow-xl transition-all active:scale-95 border-4 fab-pulse animate-scale-in ${
-                  tab === "home"
+                className={`w-14 h-14 -mt-6 rounded-2xl flex items-center justify-center shadow-xl transition-all active:scale-90 press-scale fab-pulse ${
+                  tab==="home"
                     ? "bg-teal-500 text-white shadow-teal-500/40"
                     : isDark
-                      ? "bg-slate-800 text-teal-400 shadow-slate-900/60 border-slate-950"
-                      : "bg-teal-500 text-white shadow-teal-500/30"
+                      ? "bg-slate-800 text-teal-400 shadow-black/40"
+                      : "bg-white text-teal-600 shadow-black/15"
                 }`}
-                style={{ borderColor: isDark ? "rgb(2 6 23)" : "rgb(255 255 255)" }}
+                style={{
+                  border: `3px solid ${isDark ? "rgb(2 6 23)" : "rgb(248 250 252)"}`,
+                }}
               >
-                <Icon name="store" size={22} />
+                <Icon name="store" size={21} />
               </button>
-              <span className={`text-[8px] font-black uppercase tracking-wider mt-1 ${tab === "home" ? "text-teal-400" : isDark ? "text-slate-600" : "text-slate-400"}`}>
+              <span className={`text-[8px] font-black uppercase tracking-wider mt-1.5 ${tab==="home" ? "text-teal-400" : isDark ? "text-slate-600" : "text-slate-400"}`}>
                 Início
               </span>
             </div>
 
-            {/* Armazém */}
-            <NavTab id="warehouse" label="Armazém" icon="warehouse" active={tab === "warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
+            <NavTab id="warehouse" label="Armazém" icon="warehouse" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
 
-            {/* Mais */}
+            {/* More button */}
             <button
               onClick={() => setDrawer(true)}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-all ${isExtra ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors relative ${isExtra ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-400 hover:text-slate-600"}`}
             >
               <Icon name="menu" size={18} />
               <span className="text-[8px] font-black uppercase tracking-wider leading-none">Mais</span>
-              {isExtra && <div className="w-1 h-1 rounded-full bg-teal-400 mt-0.5" />}
+              {isExtra && (
+                <div className="absolute top-2 right-[calc(50%-14px)] w-1.5 h-1.5 rounded-full bg-teal-400" />
+              )}
             </button>
 
           </div>
-        </div>
+        </nav>
 
-        {/* ── Leave-guard modal (warehouse selection) ────────────────────────── */}
+        {/* ── Warehouse leave-guard ────────────────────────────────────────── */}
         {pendingTab && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pb-8">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setPendingTab(null)} />
-            <div className={`relative w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl ${isDark ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-200"}`}>
+          <div className="fixed inset-0 z-50 flex items-end justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setPendingTab(null)} />
+            <div className={`relative w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl animate-slide-up ${isDark ? "bg-slate-900 border border-white/8" : "bg-white border border-black/8"}`}>
               <div className="flex items-start gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>
                   <Icon name="warn" size={16} />
                 </div>
                 <div>
-                  <p className={`font-black text-sm ${isDark ? "text-slate-100" : "text-slate-900"}`}>Sair com seleção ativa?</p>
+                  <p className={`font-black text-sm ${text}`}>Sair com seleção ativa?</p>
                   <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    {warehouseSelectionCount} {warehouseSelectionCount === 1 ? "item selecionado" : "itens selecionados"} no armazém. A seleção será perdida ao sair.
+                    {warehouseSelectionCount} {warehouseSelectionCount===1?"item selecionado":"itens selecionados"} no armazém. A seleção será perdida.
                   </p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setPendingTab(null)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isDark ? "bg-slate-800 text-slate-200 hover:bg-slate-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                >
+                <button onClick={() => setPendingTab(null)}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all press-scale ${isDark ? "bg-white/5 text-slate-200 hover:bg-white/10" : "bg-black/5 text-slate-700 hover:bg-black/10"}`}>
                   Cancelar
                 </button>
-                <button
-                  onClick={() => { setTab(pendingTab); setWarehouseSelectionCount(0); setPendingTab(null); }}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-400 transition-all"
-                >
+                <button onClick={() => { setTab(pendingTab); setWarehouseSelectionCount(0); setPendingTab(null); }}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-400 transition-all press-scale">
                   Sair assim mesmo
                 </button>
               </div>
@@ -348,34 +330,30 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Right Drawer ───────────────────────────────────────────────────── */}
+        {/* ── Right Drawer ─────────────────────────────────────────────────── */}
         <RightDrawer
-          open={drawerOpen}
-          onClose={() => setDrawer(false)}
-          tab={tab}
-          setTab={setTab}
-          theme={theme}
-          setTheme={setTheme}
+          open={drawerOpen} onClose={() => setDrawer(false)}
+          tab={tab} setTab={setTab} theme={theme} setTheme={setTheme}
         />
       </div>
     </ThemeCtx.Provider>
   );
 }
 
-// ── NavTab helper ──────────────────────────────────────────────────────────────
-function NavTab({ id, label, icon, active, isDark, onClick }: {
+function NavTab({ label, icon, active, isDark, onClick }: {
   id: string; label: string; icon: string;
   active: boolean; isDark: boolean; onClick: () => void;
 }) {
   return (
     <button
-      key={id}
       onClick={onClick}
-      className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-all ${active ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-500 hover:text-slate-700"}`}
+      className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors relative ${active ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-400 hover:text-slate-600"}`}
     >
       <Icon name={icon} size={18} />
       <span className="text-[8px] font-black uppercase tracking-wider leading-none">{label}</span>
-      {active && <div className="w-1 h-1 rounded-full bg-teal-400 mt-0.5" />}
+      {active && (
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full bg-teal-400 animate-scale-in" />
+      )}
     </button>
   );
 }

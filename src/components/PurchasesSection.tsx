@@ -432,27 +432,30 @@ export function PurchasesSection({
           )}
         </div>
 
-        {/* Save button — primary CTA, always visible */}
-        <div className="flex gap-3 pt-1 pb-2">
-          <Btn
-            onClick={() => { setView("list"); setEditingPurchase(null); }}
-            variant="secondary"
-            className="flex-1"
-          >
-            Cancelar
-          </Btn>
-          <Btn
-            onClick={savePurchase}
-            disabled={form.lines.length === 0 || !form.date || !form.marketId}
-            className="flex-1"
-          >
-            {editingPurchase ? "Atualizar" : "Salvar compra"}
-          </Btn>
+        {/* Save button — sticky at bottom, separated from FAB */}
+        <div className={`sticky bottom-0 z-10 -mx-4 px-4 py-3 ${isDark ? "bg-slate-950/95" : "bg-slate-50/95"} backdrop-blur-xl border-t ${isDark ? "border-white/5" : "border-black/6"}`}>
+          <div className="flex gap-3">
+            <Btn
+              onClick={() => { setView("list"); setEditingPurchase(null); }}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancelar
+            </Btn>
+            <Btn
+              onClick={savePurchase}
+              disabled={form.lines.length === 0 || !form.date || !form.marketId}
+              className="flex-1"
+            >
+              {editingPurchase ? "Atualizar" : "Salvar compra"}
+            </Btn>
+          </div>
         </div>
 
+        {/* FAB — floating add item, fixed bottom-right, well above save bar */}
         <button
           onClick={() => openLine()}
-          className={`fixed bottom-24 left-1/2 translate-x-[calc(-50%+11.25rem)] max-[520px]:right-5 max-[520px]:left-auto max-[520px]:translate-x-0 z-30 w-14 h-14 rounded-2xl bg-teal-500 text-white shadow-2xl shadow-teal-500/35 flex items-center justify-center active:scale-95 transition-all border-4 ${isDark ? "border-slate-950" : "border-white"}`}
+          className={`fixed bottom-32 right-5 z-30 w-14 h-14 rounded-2xl bg-teal-500 text-white shadow-2xl shadow-teal-500/40 flex items-center justify-center active:scale-90 transition-all press-scale border-4 fab-pulse ${isDark ? "border-slate-950" : "border-white"}`}
           aria-label="Adicionar item"
         >
           <Icon name="plus" size={24} />

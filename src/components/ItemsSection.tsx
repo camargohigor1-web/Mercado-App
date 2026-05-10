@@ -122,25 +122,15 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
         <Btn onClick={openNew}><Icon name="plus" size={15} />Novo</Btn>
       </div>
 
-      {/* Category filter chips */}
+      {/* Category filter — dropdown */}
       {categories.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap">
-          <button
-            onClick={() => setFilterCat("")}
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${!filterCat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-200 text-slate-500 hover:text-slate-700"}`}
-          >
-            Todas
-          </button>
+        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+          className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
+          <option value="">Todas as categorias</option>
           {categories.filter(cat => items.some(i => i.category === cat)).map(cat => (
-            <button
-              key={cat}
-              onClick={() => setFilterCat(filterCat === cat ? "" : cat)}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${filterCat === cat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-200 text-slate-500 hover:text-slate-700"}`}
-            >
-              {cat}
-            </button>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
-        </div>
+        </select>
       )}
 
       {filtered.length === 0 ? (

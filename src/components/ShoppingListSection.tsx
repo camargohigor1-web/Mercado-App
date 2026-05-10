@@ -249,24 +249,15 @@ export function ShoppingListSection({
               {done.length > 0 && <Btn onClick={clearDone} variant="ghost" size="sm">Limpar</Btn>}
             </div>
 
-            {/* Category filter chips */}
+            {/* Category filter — dropdown */}
             {categoryOptions.length > 1 && (
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  onClick={() => setFilterCat("")}
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${!filterCat ? "bg-blue-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-                >
-                  Todas
-                </button>
-                {categoryOptions.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setFilterCat(cat === filterCat ? "" : cat)}
-                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${filterCat === cat ? "bg-blue-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-1">
+                <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Filtrar categoria</label>
+                <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+                  className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
+                  <option value="">Todas as categorias</option>
+                  {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
               </div>
             )}
 
@@ -355,24 +346,15 @@ export function ShoppingListSection({
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Para comprar ({pending.length})</p>
           </div>
 
-          {/* Category filter chips */}
+          {/* Category filter — dropdown */}
           {categoryOptions.length > 1 && (
-            <div className="flex gap-1.5 flex-wrap">
-              <button
-                onClick={() => setFilterCat("")}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${!filterCat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-              >
-                Todas
-              </button>
-              {categoryOptions.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setFilterCat(cat === filterCat ? "" : cat)}
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${filterCat === cat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-                >
-                  {cat}
-                </button>
-              ))}
+            <div className="flex flex-col gap-1">
+              <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Filtrar categoria</label>
+              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+                className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
+                <option value="">Todas as categorias</option>
+                {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
             </div>
           )}
 
@@ -438,22 +420,13 @@ export function ShoppingListSection({
       {listMode === "plan" && <div>
         <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Adicionar à lista</p>
         {addCategoryOptions.length > 1 && (
-          <div className="flex gap-1.5 flex-wrap mb-2">
-            <button
-              onClick={() => setFilterCatAdd("")}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${!filterCatAdd ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-            >
-              Todas
-            </button>
-            {addCategoryOptions.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setFilterCatAdd(cat === filterCatAdd ? "" : cat)}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${filterCatAdd === cat ? "bg-teal-500 text-white" : isDark ? "bg-slate-800 text-slate-400 hover:text-slate-200" : "bg-slate-100 text-slate-500 hover:text-slate-700"}`}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="flex flex-col gap-1 mb-2">
+            <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
+            <select value={filterCatAdd} onChange={e => setFilterCatAdd(e.target.value)}
+              className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
+              <option value="">Todas as categorias</option>
+              {addCategoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
           </div>
         )}
         <Inp value={search} onChange={setSearch} placeholder="Buscar produto..." />
