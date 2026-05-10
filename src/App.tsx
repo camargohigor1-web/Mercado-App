@@ -198,64 +198,65 @@ export default function App() {
         </header>
 
         {/* ── Content ─────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto px-4 py-4 pb-28">
-          <div key={tab} className="animate-fade-slide-up">
-            {tab === "home" && (
-              <HomeSection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse} shoppingList={list}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onGoToHistory={() => setTab("history")}
-                onGoToWarehouse={() => setTab("warehouse")}
-                onGoToItems={() => setTab("items")}
-                onRepeatPurchase={handleRepeatPurchase}
-                onGoToReports={handleGoToReports}
-                onGoToHistoryPurchase={handleGoToHistoryPurchase}
-              />
-            )}
-            {tab === "shopping" && (
-              <ShoppingListSection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse} shoppingList={list}
-                setShoppingList={setList}
-                onConvertToPurchase={handleConvertToPurchase}
-                onGoToItems={() => setTab("items")}
-                onGoToHistoryPurchase={handleGoToHistoryPurchase}
-                onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
-              />
-            )}
-            {tab === "history" && (
-              <HistorySection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onRepeatPurchase={handleRepeatPurchase}
-                initialPurchaseId={openPurchaseId}
-                initialItemId={openItemId}
-                initialHighlightedProductId={highlightedProductId}
-                onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
-              />
-            )}
-            {tab === "warehouse" && (
-              <WarehouseSection
-                items={items} purchases={purchases} markets={markets} warehouse={warehouse}
-                setWarehouse={setWarehouse} categories={categories}
-                shoppingList={list} setShoppingList={setList}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onSelectionChange={setWarehouseSelectionCount}
-              />
-            )}
-            {tab === "purchases" && (
-              <PurchasesSection
-                key={pendingKey}
-                items={items} markets={markets} purchases={purchases}
-                setPurchases={setPurchases} setItems={setItems}
-                warehouse={warehouse} setWarehouse={setWarehouse}
-                categories={categories} setCategories={setCategories}
-                initialLines={pendingLines ?? undefined}
-                onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
-              />
-            )}
+        <main className="flex-1 overflow-hidden relative">
+          {/* Always-mounted tabs — state preserved across switches */}
+          <div style={{ display: tab === "home" ? undefined : "none" }}>
+            <HomeSection
+              items={items} markets={markets} purchases={purchases}
+              warehouse={warehouse} shoppingList={list}
+              onGoToNewPurchase={handleGoToNewPurchase}
+              onGoToHistory={() => setTab("history")}
+              onGoToWarehouse={() => setTab("warehouse")}
+              onGoToItems={() => setTab("items")}
+              onRepeatPurchase={handleRepeatPurchase}
+              onGoToReports={handleGoToReports}
+              onGoToHistoryPurchase={handleGoToHistoryPurchase}
+            />
+          </div>
+          <div style={{ display: tab === "shopping" ? undefined : "none" }}>
+            <ShoppingListSection
+              items={items} markets={markets} purchases={purchases}
+              warehouse={warehouse} shoppingList={list}
+              setShoppingList={setList}
+              onConvertToPurchase={handleConvertToPurchase}
+              onGoToItems={() => setTab("items")}
+              onGoToHistoryPurchase={handleGoToHistoryPurchase}
+              onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
+            />
+          </div>
+          <div style={{ display: tab === "history" ? undefined : "none" }}>
+            <HistorySection
+              items={items} markets={markets} purchases={purchases}
+              warehouse={warehouse}
+              onGoToNewPurchase={handleGoToNewPurchase}
+              onRepeatPurchase={handleRepeatPurchase}
+              initialPurchaseId={openPurchaseId}
+              initialItemId={openItemId}
+              initialHighlightedProductId={highlightedProductId}
+              onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
+            />
+          </div>
+          <div style={{ display: tab === "warehouse" ? undefined : "none" }}>
+            <WarehouseSection
+              items={items} purchases={purchases} markets={markets} warehouse={warehouse}
+              setWarehouse={setWarehouse} categories={categories}
+              shoppingList={list} setShoppingList={setList}
+              onGoToNewPurchase={handleGoToNewPurchase}
+              onSelectionChange={setWarehouseSelectionCount}
+            />
+          </div>
+          <div style={{ display: tab === "purchases" ? undefined : "none" }}>
+            <PurchasesSection
+              key={pendingKey}
+              items={items} markets={markets} purchases={purchases}
+              setPurchases={setPurchases} setItems={setItems}
+              warehouse={warehouse} setWarehouse={setWarehouse}
+              categories={categories} setCategories={setCategories}
+              initialLines={pendingLines ?? undefined}
+              onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
+            />
+          </div>
+          <div className="animate-fade-slide-up px-4 py-4 pb-28" style={{ display: ["items","markets","backup","reports"].includes(tab) ? undefined : "none", position: "absolute", inset: 0, overflowY: "auto" }}>
             {tab === "items"     && <ItemsSection items={items} setItems={setItems} categories={categories} setCategories={setCategories} />}
             {tab === "markets"   && <MarketsSection markets={markets} setMarkets={setMarkets} />}
             {tab === "reports"   && <ReportsSection items={items} markets={markets} purchases={purchases} warehouse={warehouse} initialMonth={reportsMonth} onGoToHistoryItem={handleGoToHistoryItem} />}
