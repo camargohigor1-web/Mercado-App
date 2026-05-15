@@ -23,7 +23,81 @@ export function load(key: string, fb: any): any {
 export function save(key: string, val: any): void {
   try {
     localStorage.setItem(key, JSON.stringify(val));
-  } catch {}
+  } catch (e) {
+    // Storage cheio ou indisponível — dispara evento customizado para UI
+    window.dispatchEvent(new CustomEvent("storage-error", { detail: { key, error: e } }));
+  }
+}
+
+// ─── Backup validation ────────────────────────────────────────────────────────
+export interface BackupValidationResult {
+  valid: boolean;
+  errors: string[];
+  data?: {
+    items: any[];
+    markets: any[];
+    purchases: any[];
+    shoppingList: any[];
+    warehouse: any[];
+    categories?: string[];
+  };
+}
+
+export function validateBackup(raw: unknown): BackupValidationResult {
+  const errors: string[] = [];
+
+  if (!raw || typeof raw !== "object") {
+    return { valid: false, errors: ["Arquivo inválido: não é um objeto JSON."] };
+  }
+
+  const data = raw as Record<string, unknown>;
+
+  if (!Array.isArray(data.items))     errors.push("Campo 'items' ausente ou inválido.");
+  if (!Array.isArray(data.markets))   errors.push("Campo 'markets' ausente ou inválido.");
+  if (!Array.isArray(data.purchases)) errors.push("Campo 'purchases' ausente ou inválido.");
+
+  if (errors.length) return { valid: false, errors };
+
+  // Validação de amostras
+  const items = data.items as any[];
+  const markets = data.markets as any[];
+  const purchases = data.purchases as any[];
+
+  for (const item of items.slice(0, 5)) {
+    if (!item.id || !item.name || !item.type) {
+      errors.push("Alguns produtos estão com dados incompletos (id, name ou type ausente).");
+      break;
+    }
+  }
+
+  for (const market of markets.slice(0, 5)) {
+    if (!market.id || !market.name) {
+      errors.push("Alguns mercados estão com dados incompletos.");
+      break;
+    }
+  }
+
+  for (const purchase of purchases.slice(0, 5)) {
+    if (!purchase.id || !purchase.date || !Array.isArray(purchase.lines)) {
+      errors.push("Algumas compras estão com dados incompletos.");
+      break;
+    }
+  }
+
+  if (errors.length) return { valid: false, errors };
+
+  return {
+    valid: true,
+    errors: [],
+    data: {
+      items,
+      markets,
+      purchases,
+      shoppingList: Array.isArray(data.shoppingList) ? data.shoppingList : [],
+      warehouse: Array.isArray(data.warehouse) ? data.warehouse : [],
+      categories: Array.isArray(data.categories) ? data.categories : undefined,
+    },
+  };
 }
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
@@ -111,9 +185,7 @@ export function getLowStockItems(
       const daysLeft = Math.round((stock / avgMonthly) * 30);
       const threshold = item.alertDays ?? 15;
 
-      // alertDays === 0 significa "sem alerta para este item"
       if (threshold === 0) return null;
-
       if (daysLeft >= threshold) return null;
 
       return {
@@ -161,8 +233,7 @@ export function calcStats(
           brand: l.brand,
         });
       } else {
-        const effectivePricePerPkg =
-          l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
+        const effectivePricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
         const effectivePricePerInternal =
           l.discountTotal > 0
             ? effectivePricePerPkg / (item.pkgSize || 1)
@@ -184,9 +255,6 @@ export function calcStats(
     });
   });
 
-  // ── Consumo médio mensal ─────────────────────────────────────────────────
-  // Baseado apenas nas compras. Denominador = meses distintos com compra,
-  // evitando distorção por meses sem registro e por somar consumo do armazém.
   const byMonth: Record<string, number> = {};
   entries.forEach(({ qty, date }: any) => {
     const k = date.slice(0, 7);
@@ -199,6 +267,7 @@ export function calcStats(
 
   if (item.type === "bulk") {
     const prices = entries.map((e: any) => e.pricePerUnit);
+    if (!prices.length) return null;
     return {
       avgMonthly,
       count: entries.length,
@@ -210,6 +279,7 @@ export function calcStats(
   } else {
     const pkgPrices = entries.map((e: any) => e.pricePerPkg);
     const intPrices = entries.map((e: any) => e.pricePerInternal).filter(Boolean);
+    if (!pkgPrices.length) return null;
     return {
       avgMonthly,
       count: entries.length,
@@ -217,9 +287,7 @@ export function calcStats(
       avgPrice: pkgPrices.reduce((a, b) => a + b, 0) / pkgPrices.length,
       minPrice: Math.min(...pkgPrices),
       lastPrice: pkgPrices[pkgPrices.length - 1],
-      avgInternal: intPrices.length
-        ? intPrices.reduce((a, b) => a + b, 0) / intPrices.length
-        : null,
+      avgInternal: intPrices.length ? intPrices.reduce((a, b) => a + b, 0) / intPrices.length : null,
       minInternal: intPrices.length ? Math.min(...intPrices) : null,
       lastInternal: intPrices.length ? intPrices[intPrices.length - 1] : null,
     };
@@ -245,9 +313,7 @@ export function calcPriceByMarket(
       if (item.type === "bulk") {
         byMarket[mktName].push(l.pricePerUnit || 0);
       } else {
-        byMarket[mktName].push(
-          l.pricePerPkgAfterDiscount ?? l.pricePerPkg
-        );
+        byMarket[mktName].push(l.pricePerPkgAfterDiscount ?? l.pricePerPkg);
       }
     });
   });

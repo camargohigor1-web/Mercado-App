@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Empty, ConfirmModal } from "./ui";
 import { uid } from "../utils";
 import type { Market } from "../types";
 
-interface MarketsSectionProps {
-  markets: Market[];
-  setMarkets: (m: Market[]) => void;
-}
-
-export function MarketsSection({ markets, setMarkets }: MarketsSectionProps) {
+export function MarketsSection() {
   const { isDark } = useTheme();
+  const { markets, setMarkets } = useAppContext();
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -19,17 +16,11 @@ export function MarketsSection({ markets, setMarkets }: MarketsSectionProps) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   function openNew() {
-    setEditing(null);
-    setName("");
-    setDescription("");
-    setModal(true);
+    setEditing(null); setName(""); setDescription(""); setModal(true);
   }
 
   function openEdit(m: Market) {
-    setEditing(m.id);
-    setName(m.name);
-    setDescription(m.description || "");
-    setModal(true);
+    setEditing(m.id); setName(m.name); setDescription(m.description || ""); setModal(true);
   }
 
   function saveMarket() {
@@ -68,9 +59,7 @@ export function MarketsSection({ markets, setMarkets }: MarketsSectionProps) {
                 </div>
                 <div className="min-w-0">
                   <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-semibold text-sm`}>{m.name}</p>
-                  {m.description && (
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">{m.description}</p>
-                  )}
+                  {m.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{m.description}</p>}
                 </div>
               </div>
               <div className="flex gap-0.5 flex-shrink-0">
@@ -90,7 +79,7 @@ export function MarketsSection({ markets, setMarkets }: MarketsSectionProps) {
         <Modal title={editing ? "Editar Mercado" : "Novo Mercado"} onClose={() => setModal(false)}>
           <div className="space-y-4">
             <Inp label="Nome do mercado" value={name} onChange={setName} placeholder="Ex: Carrefour, Extra, Atacadão..." required onEnter={saveMarket} />
-            <Inp label="Descrição (opcional)" value={description} onChange={setDescription} placeholder="Ex: Melhor para hortifruti, Atacado próximo..." onEnter={saveMarket} />
+            <Inp label="Descrição (opcional)" value={description} onChange={setDescription} placeholder="Ex: Melhor para hortifruti..." onEnter={saveMarket} />
             <div className="flex gap-3">
               <Btn onClick={() => setModal(false)} variant="secondary" className="flex-1">Cancelar</Btn>
               <Btn onClick={saveMarket} disabled={!name.trim()} className="flex-1">Salvar</Btn>

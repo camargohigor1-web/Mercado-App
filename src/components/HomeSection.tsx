@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Badge } from "./ui";
 import { fmt, getLowStockItems } from "../utils";
-import type { Item, Market, Purchase, WarehouseItem, ShoppingListEntry } from "../types";
+import type { Purchase } from "../types";
 
 interface HomeSectionProps {
-  items: Item[]; markets: Market[]; purchases: Purchase[];
-  warehouse: WarehouseItem[]; shoppingList: ShoppingListEntry[];
-  onGoToNewPurchase: () => void; onGoToHistory: () => void;
-  onGoToWarehouse: () => void; onGoToItems: () => void;
+  onGoToNewPurchase: () => void;
+  onGoToHistory: () => void;
+  onGoToWarehouse: () => void;
+  onGoToItems: () => void;
   onRepeatPurchase: (purchase: Purchase) => void;
   onGoToReports: (month: string) => void;
   onGoToHistoryPurchase: (purchaseId: string) => void;
@@ -53,14 +54,13 @@ const CHART_COLORS = [
   { bar:"#f43f5e", text:"#fb7185" },
 ];
 
-// ── Category chart ─────────────────────────────────────────────────────────────
 function CategoryChart({ purchases, items, month, isDark }: {
-  purchases: Purchase[]; items: Item[]; month: string; isDark: boolean;
+  purchases: any[]; items: any[]; month: string; isDark: boolean;
 }) {
   const byCategory: Record<string, number> = {};
   purchases.filter(p => p.date.startsWith(month)).forEach(p =>
-    p.lines.forEach(l => {
-      const cat = items.find(i => i.id === l.itemId)?.category || "Outros";
+    p.lines.forEach((l: any) => {
+      const cat = items.find((i: any) => i.id === l.itemId)?.category || "Outros";
       byCategory[cat] = (byCategory[cat] || 0) + l.total;
     })
   );
@@ -98,16 +98,15 @@ function CategoryChart({ purchases, items, month, isDark }: {
   );
 }
 
-// ── Monthly chart ──────────────────────────────────────────────────────────────
 function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
-  purchases: Purchase[]; selectedMonth: string;
+  purchases: any[]; selectedMonth: string;
   onSelectMonth: (m: string) => void; isDark: boolean;
 }) {
   const months = buildMonths(6);
   const totals = months.map(key => ({
     key,
     label: shortMonthLabel(key),
-    total: purchases.filter(p => p.date.startsWith(key)).reduce((s, p) => s + p.total, 0),
+    total: purchases.filter(p => p.date.startsWith(key)).reduce((s: number, p: any) => s + p.total, 0),
   }));
   const max     = Math.max(...totals.map(m => m.total), 1);
   const hasData = totals.some(m => m.total > 0);
@@ -178,13 +177,13 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
   );
 }
 
-// ── HomeSection ────────────────────────────────────────────────────────────────
 export function HomeSection({
-  items, markets, purchases, warehouse,
   onGoToNewPurchase, onGoToWarehouse, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase,
 }: HomeSectionProps) {
   const { isDark } = useTheme();
+  const { items, markets, purchases, warehouse, list } = useAppContext();
+
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
@@ -199,13 +198,11 @@ export function HomeSection({
   const warning  = low.filter(l => l.daysLeft > 7 && l.daysLeft <= 15);
   const getMkt   = (id: string) => markets.find(m => m.id === id)?.name ?? "Mercado";
 
-  // Style tokens
   const card  = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
   const lbl   = `text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? "text-slate-500" : "text-slate-400"}`;
   const ttl   = `font-black ${isDark ? "text-slate-100" : "text-slate-900"}`;
   const sub   = `text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`;
 
-  // ── Empty state ────────────────────────────────────────────────────────────
   if (!purchases.length && !items.length) return (
     <div className="flex flex-col items-center justify-center py-16 space-y-6 text-center">
       <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${isDark ? "bg-teal-500/10" : "bg-teal-50"}`}>
@@ -228,15 +225,12 @@ export function HomeSection({
     </div>
   );
 
-  // ── No purchases yet ───────────────────────────────────────────────────────
   if (!purchases.length) return (
     <div className="space-y-5">
-      {/* Greeting */}
       <div className="pt-1 pb-1">
         <p className={`text-xl font-black ${ttl}`}>{getGreeting()} 👋</p>
         <p className={`text-xs mt-0.5 ${sub}`}>{cap(getWeekday())}</p>
       </div>
-      {/* CTA */}
       <button onClick={onGoToNewPurchase}
         className="w-full py-4 rounded-2xl bg-teal-500 text-white font-black text-base shadow-xl shadow-teal-500/30 active:scale-[0.97] transition-all flex items-center justify-center gap-3 group press-scale">
         <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-active:scale-90 transition-transform">
@@ -253,17 +247,13 @@ export function HomeSection({
     </div>
   );
 
-  // ── Normal ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
-
-      {/* Greeting */}
       <div className="pt-1 pb-1 animate-fade-slide-up">
         <p className={`text-xl font-black ${ttl}`}>{getGreeting()} 👋</p>
         <p className={`text-xs mt-0.5 ${sub}`}>{cap(getWeekday())}</p>
       </div>
 
-      {/* Main CTA */}
       <div className="animate-fade-slide-up stagger-1">
         <button onClick={onGoToNewPurchase}
           className="w-full py-4 rounded-2xl bg-teal-500 text-white font-black text-base shadow-xl shadow-teal-500/30 active:scale-[0.97] transition-all flex items-center justify-center gap-3 group press-scale">
@@ -274,7 +264,6 @@ export function HomeSection({
         </button>
       </div>
 
-      {/* Monthly chart */}
       <div className="animate-fade-slide-up stagger-1">
         <p className={`${lbl} mb-2.5`}>Gastos — últimos 6 meses</p>
         <div className={card}>
@@ -283,7 +272,6 @@ export function HomeSection({
         </div>
       </div>
 
-      {/* Month stats */}
       <div className="animate-fade-slide-up stagger-2">
         <div className="flex items-center justify-between mb-2.5">
           <p className={lbl}>{cap(monthLabel(selectedMonth))}</p>
@@ -328,7 +316,6 @@ export function HomeSection({
         </div>
       </div>
 
-      {/* Critical stock alert */}
       {critical.length > 0 && (
         <div className="animate-fade-slide-up stagger-2">
           <p className={`${lbl} mb-2.5`}>Acabando agora</p>
@@ -356,7 +343,6 @@ export function HomeSection({
         </div>
       )}
 
-      {/* Warning stock */}
       {warning.length > 0 && !critical.length && (
         <div className="animate-fade-slide-up stagger-2">
           <p className={`${lbl} mb-2.5`}>Atenção no estoque</p>
@@ -376,7 +362,6 @@ export function HomeSection({
         </div>
       )}
 
-      {/* Category chart */}
       <div className="animate-fade-slide-up stagger-3">
         <p className={`${lbl} mb-2.5`}>Por categoria — {cap(monthLabel(selectedMonth))}</p>
         <div className={card}>
@@ -384,7 +369,6 @@ export function HomeSection({
         </div>
       </div>
 
-      {/* Last purchase */}
       {lastPurchase && (
         <div className="animate-fade-slide-up stagger-3">
           <p className={`${lbl} mb-2.5`}>Última compra</p>
@@ -417,7 +401,6 @@ export function HomeSection({
           </div>
         </div>
       )}
-
     </div>
   );
 }

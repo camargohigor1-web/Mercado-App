@@ -37,42 +37,21 @@ export function Btn({ children, onClick, variant = "primary", size = "md", class
 
 // ─── Inp ──────────────────────────────────────────────────────────────────────
 interface InpProps {
-  label?: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  placeholder?: string;
-  className?: string;
-  required?: boolean;
-  step?: string;
-  min?: string;
-  max?: string;
-  onEnter?: () => void;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
+  label?: string; value: string; onChange: (v: string) => void;
+  type?: string; placeholder?: string; className?: string;
+  required?: boolean; step?: string; min?: string; max?: string;
+  onEnter?: () => void; inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function Inp({ label, value, onChange, type = "text", placeholder, className = "", required, step, min, max, onEnter, inputRef }: InpProps) {
   const { isDark } = useContext(ThemeCtx);
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && onEnter) { e.preventDefault(); onEnter(); }
-  };
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      {label && (
-        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          {label}{required && <span className="text-red-400 ml-1">*</span>}
-        </label>
-      )}
+      {label && <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
       <input
-        ref={inputRef}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        step={step}
-        min={min}
-        max={max}
+        ref={inputRef} type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        step={step} min={min} max={max}
+        onKeyDown={e => { if (e.key === "Enter" && onEnter) { e.preventDefault(); onEnter(); } }}
         className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`}
       />
     </div>
@@ -81,33 +60,20 @@ export function Inp({ label, value, onChange, type = "text", placeholder, classN
 
 // ─── Sel ──────────────────────────────────────────────────────────────────────
 interface SelProps {
-  label?: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
-  className?: string;
-  required?: boolean;
+  label?: string; value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[]; placeholder?: string;
+  className?: string; required?: boolean;
 }
 
 export function Sel({ label, value, onChange, options, placeholder, className = "", required }: SelProps) {
   const { isDark } = useContext(ThemeCtx);
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      {label && (
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-          {label}{required && <span className="text-red-400 ml-1">*</span>}
-        </label>
-      )}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}
-      >
+      {label && <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
         {placeholder && <option value="">{placeholder}</option>}
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
   );
@@ -115,78 +81,45 @@ export function Sel({ label, value, onChange, options, placeholder, className = 
 
 // ─── ProductSearch ────────────────────────────────────────────────────────────
 interface ProductSearchProps {
-  label?: string;
-  value: string;
-  onChange: (v: string) => void;
-  items: Item[];
-  required?: boolean;
-  onCreateMissing?: (query: string) => void;
+  label?: string; value: string; onChange: (v: string) => void;
+  items: Item[]; required?: boolean; onCreateMissing?: (query: string) => void;
 }
 
 export function ProductSearch({ label, value, onChange, items, required, onCreateMissing }: ProductSearchProps) {
   const { isDark } = useContext(ThemeCtx);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]   = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const selectedItem = items.find((i) => i.id === value);
+  const selectedItem = items.find(i => i.id === value);
   const cleanQuery = query.trim();
 
   useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
+    function handle(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  const filtered = items
-    .filter((i) =>
-      i.name.toLowerCase().includes(query.toLowerCase()) ||
-      (i.category || "").toLowerCase().includes(query.toLowerCase())
-    )
-    .slice(0, 20);
+  const filtered = items.filter(i =>
+    i.name.toLowerCase().includes(query.toLowerCase()) ||
+    (i.category || "").toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 20);
 
-  function select(item: Item) {
-    onChange(item.id);
-    setQuery("");
-    setOpen(false);
-  }
-
-  function createMissing() {
-    if (!cleanQuery || !onCreateMissing) return;
-    onCreateMissing(cleanQuery);
-    setOpen(false);
-  }
+  function select(item: Item) { onChange(item.id); setQuery(""); setOpen(false); }
+  function createMissing() { if (!cleanQuery || !onCreateMissing) return; onCreateMissing(cleanQuery); setOpen(false); }
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
-      {label && (
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-          {label}{required && <span className="text-red-400 ml-1">*</span>}
-        </label>
-      )}
+      {label && <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
       {selectedItem && !open ? (
-        <div
-          className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
-          onClick={() => { setOpen(true); setQuery(""); }}
-        >
-          <span>
-            {selectedItem.name}{" "}
-            <span className="text-slate-500 text-xs">
-              ({selectedItem.type === "bulk" ? `${selectedItem.displayUnit || selectedItem.unit}` : `${selectedItem.pkgSize}${selectedItem.pkgUnit}/emb`})
-            </span>
-          </span>
+        <div className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
+          onClick={() => { setOpen(true); setQuery(""); }}>
+          <span>{selectedItem.name} <span className="text-slate-500 text-xs">({selectedItem.type === "bulk" ? selectedItem.displayUnit || selectedItem.unit : `${selectedItem.pkgSize}${selectedItem.pkgUnit}/emb`})</span></span>
           <span className="text-slate-500 text-xs">trocar</span>
         </div>
       ) : (
-        <input
-          autoFocus={open}
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
           placeholder={selectedItem ? selectedItem.name : "Digite para buscar produto..."}
-          className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`}
-        />
+          className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
       {open && (
         <div className={`${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"} border rounded-xl overflow-hidden shadow-2xl z-50 max-h-52 overflow-y-auto`}>
@@ -194,49 +127,34 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
             <div className="py-2">
               <p className="text-slate-500 text-xs text-center py-2">Nenhum produto encontrado</p>
               {onCreateMissing && cleanQuery && (
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); createMissing(); }}
-                  onClick={createMissing}
-                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}
-                >
-                  <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20">
-                    <Icon name="plus" size={12} />
-                  </span>
+                <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
+                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
+                  <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
                   <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
                 </button>
               )}
             </div>
           ) : (
             <>
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                onMouseDown={() => select(item)}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}
-              >
-                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "bulk" ? "bg-teal-500/20 text-teal-400" : "bg-amber-500/20 text-amber-400"}`}>
-                  <Icon name={item.type === "bulk" ? "scale" : "box"} size={11} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-medium truncate`}>{item.name}</p>
-                  <p className="text-slate-500 text-[10px]">
-                    {item.category} · {item.type === "bulk" ? `${item.displayUnit || item.unit}` : `${item.pkgSize}${item.pkgUnit}/emb`}
-                  </p>
-                </div>
-              </button>
-            ))}
-            {onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()) && (
-              <button
-                onMouseDown={(e) => { e.preventDefault(); createMissing(); }}
-                onClick={createMissing}
-                className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}
-              >
-                <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20">
-                  <Icon name="plus" size={12} />
-                </span>
-                <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
-              </button>
-            )}
+              {filtered.map(item => (
+                <button key={item.id} onMouseDown={() => select(item)}
+                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "bulk" ? "bg-teal-500/20 text-teal-400" : "bg-amber-500/20 text-amber-400"}`}>
+                    <Icon name={item.type === "bulk" ? "scale" : "box"} size={11} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-medium truncate`}>{item.name}</p>
+                    <p className="text-slate-500 text-[10px]">{item.category} · {item.type === "bulk" ? item.displayUnit || item.unit : `${item.pkgSize}${item.pkgUnit}/emb`}</p>
+                  </div>
+                </button>
+              ))}
+              {onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()) && (
+                <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
+                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
+                  <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
+                  <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -245,82 +163,55 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
   );
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// ─── MarketSearch ─────────────────────────────────────────────────────────────
 interface MarketSearchProps {
-  label?: string;
-  value: string;
-  onChange: (v: string) => void;
-  markets: Market[];
-  required?: boolean;
+  label?: string; value: string; onChange: (v: string) => void;
+  markets: Market[]; required?: boolean;
 }
 
 export function MarketSearch({ label, value, onChange, markets, required }: MarketSearchProps) {
   const { isDark } = useContext(ThemeCtx);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]   = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const selectedMarket = markets.find((m) => m.id === value);
+  const selectedMarket = markets.find(m => m.id === value);
 
   useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
+    function handle(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  const filtered = markets
-    .filter((m) =>
-      m.name.toLowerCase().includes(query.toLowerCase()) ||
-      (m.description || "").toLowerCase().includes(query.toLowerCase())
-    )
-    .slice(0, 20);
+  const filtered = markets.filter(m =>
+    m.name.toLowerCase().includes(query.toLowerCase()) ||
+    (m.description || "").toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 20);
 
-  function select(market: Market) {
-    onChange(market.id);
-    setQuery("");
-    setOpen(false);
-  }
+  function select(market: Market) { onChange(market.id); setQuery(""); setOpen(false); }
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
-      {label && (
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-          {label}{required && <span className="text-red-400 ml-1">*</span>}
-        </label>
-      )}
+      {label && <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
       {selectedMarket && !open ? (
-        <div
-          className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
-          onClick={() => { setOpen(true); setQuery(""); }}
-        >
+        <div className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
+          onClick={() => { setOpen(true); setQuery(""); }}>
           <span className="truncate">{selectedMarket.name}</span>
           <span className="text-slate-500 text-xs ml-2 flex-shrink-0">trocar</span>
         </div>
       ) : (
-        <input
-          autoFocus={open}
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
           placeholder={selectedMarket ? selectedMarket.name : "Digite para buscar mercado..."}
-          className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`}
-        />
+          className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
       {open && (
         <div className={`${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"} border rounded-xl overflow-hidden shadow-2xl z-50 max-h-52 overflow-y-auto`}>
           {filtered.length === 0 ? (
             <p className="text-slate-500 text-xs text-center py-4">Nenhum mercado encontrado</p>
           ) : (
-            filtered.map((market) => (
-              <button
-                key={market.id}
-                onMouseDown={() => select(market)}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}
-              >
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20 text-blue-400">
-                  <Icon name="store" size={11} />
-                </div>
+            filtered.map(market => (
+              <button key={market.id} onMouseDown={() => select(market)}
+                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20 text-blue-400"><Icon name="store" size={11} /></div>
                 <div className="min-w-0">
                   <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-medium truncate`}>{market.name}</p>
                   {market.description && <p className="text-slate-500 text-[10px] truncate">{market.description}</p>}
@@ -334,20 +225,16 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
   );
 }
 
-interface ModalProps {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}
+// ─── Modal ────────────────────────────────────────────────────────────────────
+interface ModalProps { title: string; children: React.ReactNode; onClose: () => void; }
 
 export function Modal({ title, children, onClose }: ModalProps) {
   const { isDark } = useContext(ThemeCtx);
   const closeModal = useBrowserBackClose(true, onClose);
-
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm">
       <div className={`${isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"} border rounded-t-3xl w-full max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl`}>
-        <div className={`flex items-center justify-between px-5 pt-5 pb-4 sticky top-0 ${isDark ? "bg-slate-950" : "bg-white"} z-10 ${isDark ? "border-b border-slate-800" : "border-b border-slate-200"}`}>
+        <div className={`flex items-center justify-between px-5 pt-5 pb-4 sticky top-0 ${isDark ? "bg-slate-950 border-b border-slate-800" : "bg-white border-b border-slate-200"} z-10`}>
           <h2 className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{title}</h2>
           <button onClick={closeModal} className={`${isDark ? "text-slate-500 hover:text-slate-200 hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"} p-1 rounded-lg transition-colors`}>
             <Icon name="x" size={17} />
@@ -362,13 +249,8 @@ export function Modal({ title, children, onClose }: ModalProps) {
 
 // ─── ConfirmModal ─────────────────────────────────────────────────────────────
 interface ConfirmModalProps {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  variant?: "danger" | "primary";
-  onConfirm: () => void;
-  onCancel: () => void;
+  title: string; message: string; confirmLabel?: string; cancelLabel?: string;
+  variant?: "danger" | "primary"; onConfirm: () => void; onCancel: () => void;
 }
 
 export function ConfirmModal({ title, message, confirmLabel = "Confirmar", cancelLabel = "Cancelar", variant = "danger", onConfirm, onCancel }: ConfirmModalProps) {
@@ -376,16 +258,13 @@ export function ConfirmModal({ title, message, confirmLabel = "Confirmar", cance
     <Modal title={title} onClose={onCancel}>
       <div className="space-y-4">
         <div className={`flex items-start gap-3 ${variant === "danger" ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30"} border rounded-xl p-4`}>
-          <span className={`${variant === "danger" ? "text-red-400" : "text-amber-400"} flex-shrink-0 mt-0.5`}>
-            <Icon name="warn" size={18} />
-          </span>
+          <span className={`${variant === "danger" ? "text-red-400" : "text-amber-400"} flex-shrink-0 mt-0.5`}><Icon name="warn" size={18} /></span>
           <p className={`text-sm leading-relaxed ${variant === "danger" ? "text-red-300" : "text-amber-300"}`}>{message}</p>
         </div>
         <div className="flex gap-3">
           <Btn onClick={onCancel} variant="secondary" className="flex-1">{cancelLabel}</Btn>
           <Btn onClick={onConfirm} variant={variant === "danger" ? "danger" : "primary"} className="flex-1">
-            <Icon name={variant === "danger" ? "trash" : "check"} size={15} />
-            {confirmLabel}
+            <Icon name={variant === "danger" ? "trash" : "check"} size={15} />{confirmLabel}
           </Btn>
         </div>
       </div>
@@ -394,56 +273,37 @@ export function ConfirmModal({ title, message, confirmLabel = "Confirmar", cance
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
-interface CardProps {
-  children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
-}
+interface CardProps { children: React.ReactNode; className?: string; onClick?: () => void; }
 
 export function Card({ children, className = "", onClick }: CardProps) {
   const { isDark } = useContext(ThemeCtx);
   return (
-    <div
-      onClick={onClick}
-      className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4 ${onClick ? `cursor-pointer ${isDark ? "hover:border-slate-700" : "hover:border-slate-300"} active:scale-[.99]` : ""} transition-all ${className}`}
-    >
+    <div onClick={onClick}
+      className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4 ${onClick ? `cursor-pointer ${isDark ? "hover:border-slate-700" : "hover:border-slate-300"} active:scale-[.99]` : ""} transition-all ${className}`}>
       {children}
     </div>
   );
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
-interface BadgeProps {
-  children: React.ReactNode;
-  color?: "slate" | "teal" | "amber" | "blue" | "red" | "green";
-}
+interface BadgeProps { children: React.ReactNode; color?: "slate" | "teal" | "amber" | "blue" | "red" | "green"; }
 
 export function Badge({ children, color = "slate" }: BadgeProps) {
   const { isDark } = useContext(ThemeCtx);
   const c = isDark
     ? { slate: "bg-slate-800 text-slate-400", teal: "bg-teal-500/15 text-teal-400", amber: "bg-amber-500/15 text-amber-400", blue: "bg-blue-500/15 text-blue-400", red: "bg-red-500/15 text-red-400", green: "bg-green-500/15 text-green-400" }
-    : { slate: "bg-slate-200 text-slate-600", teal: "bg-teal-100 text-teal-700", amber: "bg-amber-100 text-amber-700", blue: "bg-blue-100 text-blue-700", red: "bg-red-100 text-red-700", green: "bg-green-100 text-green-700" };
-  return (
-    <span className={`${c[color] || c.slate} text-[10px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap`}>
-      {children}
-    </span>
-  );
+    : { slate: "bg-slate-200 text-slate-600", teal: "bg-teal-100 text-teal-700",    amber: "bg-amber-100 text-amber-700",    blue: "bg-blue-100 text-blue-700",    red: "bg-red-100 text-red-700",    green: "bg-green-100 text-green-700" };
+  return <span className={`${c[color] || c.slate} text-[10px] font-bold px-2 py-0.5 rounded-lg whitespace-nowrap`}>{children}</span>;
 }
 
 // ─── Empty ────────────────────────────────────────────────────────────────────
-interface EmptyProps {
-  icon: string;
-  title: string;
-  sub?: string;
-}
+interface EmptyProps { icon: string; title: string; sub?: string; }
 
 export function Empty({ icon, title, sub }: EmptyProps) {
   const { isDark } = useContext(ThemeCtx);
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-8">
-      <div className={isDark ? "text-slate-800" : "text-slate-300"}>
-        <Icon name={icon} size={44} />
-      </div>
+      <div className={isDark ? "text-slate-800" : "text-slate-300"}><Icon name={icon} size={44} /></div>
       <p className={`${isDark ? "text-slate-300" : "text-slate-700"} font-bold text-sm`}>{title}</p>
       {sub && <p className={`${isDark ? "text-slate-600" : "text-slate-500"} text-xs leading-relaxed`}>{sub}</p>}
     </div>
@@ -451,16 +311,13 @@ export function Empty({ icon, title, sub }: EmptyProps) {
 }
 
 // ─── InfoBox ──────────────────────────────────────────────────────────────────
-interface InfoBoxProps {
-  children: React.ReactNode;
-  color?: "amber" | "teal" | "blue";
-}
+interface InfoBoxProps { children: React.ReactNode; color?: "amber" | "teal" | "blue"; }
 
 export function InfoBox({ children, color = "amber" }: InfoBoxProps) {
   const c: Record<string, string> = {
     amber: "bg-amber-500/10 border-amber-500/30 text-amber-400",
-    teal: "bg-teal-500/10 border-teal-500/30 text-teal-400",
-    blue: "bg-blue-500/10 border-blue-500/30 text-blue-400",
+    teal:  "bg-teal-500/10 border-teal-500/30 text-teal-400",
+    blue:  "bg-blue-500/10 border-blue-500/30 text-blue-400",
   };
   return (
     <div className={`${c[color]} border rounded-xl px-4 py-3 text-xs flex gap-2 items-start leading-relaxed`}>
@@ -471,11 +328,7 @@ export function InfoBox({ children, color = "amber" }: InfoBoxProps) {
 }
 
 // ─── StatBox ──────────────────────────────────────────────────────────────────
-interface StatBoxProps {
-  label: string;
-  val: string;
-  color?: "" | "teal" | "blue" | "red" | "green";
-}
+interface StatBoxProps { label: string; val: string; color?: "" | "teal" | "blue" | "red" | "green"; }
 
 export function StatBox({ label, val, color = "" }: StatBoxProps) {
   const { isDark } = useContext(ThemeCtx);
@@ -491,22 +344,12 @@ export function StatBox({ label, val, color = "" }: StatBoxProps) {
 }
 
 // ─── BarChart ─────────────────────────────────────────────────────────────────
-interface BarChartItem {
-  label: string;
-  value: number;
-  sub?: string;
-}
+interface BarChartItem { label: string; value: number; sub?: string; }
 
-interface BarChartProps {
-  data: BarChartItem[];
-  colorClass?: string;
-  formatValue: (v: number) => string;
-}
-
-export function BarChart({ data, colorClass = "bg-teal-500", formatValue }: BarChartProps) {
+export function BarChart({ data, colorClass = "bg-teal-500", formatValue }: { data: BarChartItem[]; colorClass?: string; formatValue: (v: number) => string }) {
   const { isDark } = useContext(ThemeCtx);
   if (!data || data.length === 0) return null;
-  const maxVal = Math.max(...data.map((d) => d.value), 0.01);
+  const maxVal = Math.max(...data.map(d => d.value), 0.01);
   return (
     <div className="space-y-2.5">
       {data.map((item, i) => (
@@ -516,10 +359,7 @@ export function BarChart({ data, colorClass = "bg-teal-500", formatValue }: BarC
             <span className={`text-xs font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{formatValue(item.value)}</span>
           </div>
           <div className={`h-2 ${isDark ? "bg-slate-800" : "bg-slate-200"} rounded-full overflow-hidden`}>
-            <div
-              className={`h-full ${colorClass} rounded-full transition-all duration-500`}
-              style={{ width: `${Math.max(2, (item.value / maxVal) * 100)}%` }}
-            />
+            <div className={`h-full ${colorClass} rounded-full transition-all duration-500`} style={{ width: `${Math.max(2, (item.value / maxVal) * 100)}%` }} />
           </div>
           {item.sub && <p className="text-[10px] text-slate-600 mt-0.5">{item.sub}</p>}
         </div>
@@ -528,262 +368,130 @@ export function BarChart({ data, colorClass = "bg-teal-500", formatValue }: BarC
   );
 }
 
-// ─── LineChart (price evolution — interactive) ────────────────────────────────
+// ─── LineChart ────────────────────────────────────────────────────────────────
 export interface LineChartPoint {
-  label: string;       // date label shown on X axis  (e.g. "jan/25")
-  value: number;       // price value
-  date?: string;       // ISO date "YYYY-MM-DD" for full tooltip
-  market?: string;     // market name for tooltip
-  qty?: string;        // e.g. "2 emb" for tooltip
-  discount?: string;   // discount info
+  label: string; value: number; date?: string;
+  market?: string; qty?: string; discount?: string;
 }
 
-interface LineChartProps {
-  data: LineChartPoint[];
-  formatValue: (v: number) => string;
-  colorClass?: string;
-  unit?: string;       // e.g. "R$/kg" shown in header
-}
-
-export function LineChart({ data, formatValue, colorClass = "teal", unit }: LineChartProps) {
+export function LineChart({ data, formatValue, colorClass = "teal", unit }: { data: LineChartPoint[]; formatValue: (v: number) => string; colorClass?: string; unit?: string }) {
   const { isDark } = useContext(ThemeCtx);
   const [active, setActive] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-
   if (!data || data.length < 2) return null;
 
-  const values   = data.map(d => d.value);
-  const minV     = Math.min(...values);
-  const maxV     = Math.max(...values);
-  const range    = maxV - minV || 1;
-  const W        = 320;
-  const H        = 110;
-  const padL     = 8;
-  const padR     = 8;
-  const padT     = 14;
-  const padB     = 6;
-  const innerW   = W - padL - padR;
-  const innerH   = H - padT - padB;
+  const values = data.map(d => d.value);
+  const minV   = Math.min(...values), maxV = Math.max(...values);
+  const range  = maxV - minV || 1;
+  const W=320, H=110, padL=8, padR=8, padT=14, padB=6;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const color  = colorClass === "teal" ? "#14b8a6" : colorClass === "blue" ? "#60a5fa" : colorClass === "red" ? "#f87171" : "#14b8a6";
 
-  const color     = colorClass === "teal" ? "#14b8a6" : colorClass === "blue" ? "#60a5fa" : colorClass === "red" ? "#f87171" : "#14b8a6";
-  const pts = data.map((d, i) => ({
-    x: padL + (i / (data.length - 1)) * innerW,
-    y: padT + (1 - (d.value - minV) / range) * innerH,
-    ...d,
-  }));
+  const pts = data.map((d, i) => ({ x: padL + (i / (data.length - 1)) * innerW, y: padT + (1 - (d.value - minV) / range) * innerH, ...d }));
+  const polyline = pts.map(p => `${p.x},${p.y}`).join(" ");
+  const areaPath = `${padL},${H-padB} ${polyline} ${W-padR},${H-padB}`;
+  const minIdx = values.indexOf(minV), maxIdx = values.indexOf(maxV);
+  const trend  = values[values.length-1] - values[0];
 
-  const polyline  = pts.map(p => `${p.x},${p.y}`).join(" ");
-  const areaPath  = `${padL},${H - padB} ${polyline} ${W - padR},${H - padB}`;
-
-  // Min/max annotation indices
-  const minIdx = values.indexOf(minV);
-  const maxIdx = values.indexOf(maxV);
-  const firstV = values[0];
-  const lastV  = values[values.length - 1];
-  const trend  = lastV - firstV;
-
-  // Touch/click: find nearest point
-  function handleSvgInteraction(e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) {
-    const svg = svgRef.current;
-    if (!svg) return;
+  function handleInteraction(e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) {
+    const svg = svgRef.current; if (!svg) return;
     const rect = svg.getBoundingClientRect();
     const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
     const relX = ((clientX - rect.left) / rect.width) * W;
-    let nearest = 0;
-    let nearestDist = Infinity;
-    pts.forEach((p, i) => { const d = Math.abs(p.x - relX); if (d < nearestDist) { nearestDist = d; nearest = i; } });
+    let nearest=0, nearestDist=Infinity;
+    pts.forEach((p, i) => { const d = Math.abs(p.x - relX); if (d < nearestDist) { nearestDist=d; nearest=i; } });
     setActive(nearest);
   }
 
   const ap = active !== null ? pts[active] : null;
   const ad = active !== null ? data[active] : null;
 
-  // Tooltip horizontal position clamped to SVG bounds
-  const tooltipX = ap ? Math.max(50, Math.min(W - 50, ap.x)) : W / 2;
-  const tooltipAbove = ap ? ap.y > H / 2 : true;
-
   return (
     <div className="select-none">
-      {/* Legend strip */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-black uppercase tracking-wide ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-            {unit || "Evolução"}
-          </span>
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-            trend > 0
-              ? isDark ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-600"
-              : isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-50 text-teal-600"
-          }`}>
+          <span className={`text-[10px] font-black uppercase tracking-wide ${isDark ? "text-slate-500" : "text-slate-400"}`}>{unit || "Evolução"}</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${trend > 0 ? isDark ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-600" : isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-50 text-teal-600"}`}>
             {trend > 0 ? "▲" : "▼"} {formatValue(Math.abs(trend))}
           </span>
         </div>
-        <span className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-          {data.length} compra{data.length !== 1 ? "s" : ""}
-        </span>
+        <span className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data.length} compra{data.length !== 1 ? "s" : ""}</span>
       </div>
-
-      {/* SVG chart */}
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full cursor-crosshair touch-none"
-        style={{ height: H }}
-        onMouseMove={handleSvgInteraction}
-        onTouchMove={handleSvgInteraction}
-        onMouseLeave={() => setActive(null)}
-        onTouchEnd={() => setTimeout(() => setActive(null), 1800)}
-        onClick={handleSvgInteraction}
-      >
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full cursor-crosshair touch-none" style={{ height: H }}
+        onMouseMove={handleInteraction} onTouchMove={handleInteraction}
+        onMouseLeave={() => setActive(null)} onTouchEnd={() => setTimeout(() => setActive(null), 1800)} onClick={handleInteraction}>
         <defs>
           <linearGradient id={`grad-${colorClass}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.22" />
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-
-        {/* Horizontal guide lines */}
-        {[0.25, 0.5, 0.75].map(f => (
-          <line key={f}
-            x1={padL} y1={padT + f * innerH} x2={W - padR} y2={padT + f * innerH}
-            stroke={isDark ? "#1e293b" : "#f1f5f9"} strokeWidth="1"
-          />
-        ))}
-
-        {/* Area fill */}
+        {[0.25, 0.5, 0.75].map(f => <line key={f} x1={padL} y1={padT+f*innerH} x2={W-padR} y2={padT+f*innerH} stroke={isDark ? "#1e293b" : "#f1f5f9"} strokeWidth="1" />)}
         <polygon points={areaPath} fill={`url(#grad-${colorClass})`} />
-
-        {/* Line */}
         <polyline points={polyline} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Min/max labels */}
         {minIdx !== maxIdx && (
           <>
-            <text x={pts[minIdx].x} y={pts[minIdx].y + 11} textAnchor="middle"
-              fontSize="7.5" fill={isDark ? "#2dd4bf" : "#0d9488"} fontWeight="700">
-              min
-            </text>
-            <text x={pts[maxIdx].x} y={pts[maxIdx].y - 5} textAnchor="middle"
-              fontSize="7.5" fill={isDark ? "#f87171" : "#dc2626"} fontWeight="700">
-              max
-            </text>
+            <text x={pts[minIdx].x} y={pts[minIdx].y+11} textAnchor="middle" fontSize="7.5" fill={isDark ? "#2dd4bf" : "#0d9488"} fontWeight="700">min</text>
+            <text x={pts[maxIdx].x} y={pts[maxIdx].y-5} textAnchor="middle" fontSize="7.5" fill={isDark ? "#f87171" : "#dc2626"} fontWeight="700">max</text>
           </>
         )}
-
-        {/* Vertical cursor line */}
-        {ap && (
-          <line x1={ap.x} y1={padT} x2={ap.x} y2={H - padB}
-            stroke={color} strokeWidth="1" strokeDasharray="3 2" opacity="0.5" />
-        )}
-
-        {/* Dots — all small, active big */}
+        {ap && <line x1={ap.x} y1={padT} x2={ap.x} y2={H-padB} stroke={color} strokeWidth="1" strokeDasharray="3 2" opacity="0.5" />}
         {pts.map((p, i) => {
-          const isMin  = i === minIdx;
-          const isMax  = i === maxIdx;
-          const isLast = i === pts.length - 1;
-          const isAct  = i === active;
+          const isMin=i===minIdx, isMax=i===maxIdx, isLast=i===pts.length-1, isAct=i===active;
           const dotColor = isMin ? (isDark ? "#2dd4bf" : "#0d9488") : isMax ? (isDark ? "#f87171" : "#dc2626") : color;
           return (
             <g key={i}>
-              <circle cx={p.x} cy={p.y} r={isAct ? 6 : isMin || isMax || isLast ? 4 : 3}
-                fill={isAct ? (isDark ? "#0f172a" : "#fff") : dotColor}
-                stroke={dotColor} strokeWidth={isAct ? 2.5 : 0}
-                style={{ transition: "r 120ms ease" }}
-              />
-              {/* Invisible hit area */}
+              <circle cx={p.x} cy={p.y} r={isAct ? 6 : isMin||isMax||isLast ? 4 : 3}
+                fill={isAct ? (isDark ? "#0f172a" : "#fff") : dotColor} stroke={dotColor} strokeWidth={isAct ? 2.5 : 0}
+                style={{ transition: "r 120ms ease" }} />
               <circle cx={p.x} cy={p.y} r="18" fill="transparent" />
             </g>
           );
         })}
-
-        {/* Tooltip bubble */}
         {ap && ad && (() => {
           const lines: string[] = [];
-          if (ad.date) lines.push(new Date(ad.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" }));
+          if (ad.date) lines.push(new Date(ad.date+"T12:00:00").toLocaleDateString("pt-BR", { day:"2-digit", month:"short", year:"2-digit" }));
           if (ad.market) lines.push(ad.market);
-          if (ad.qty) lines.push(ad.qty);
+          if (ad.qty)    lines.push(ad.qty);
           if (ad.discount) lines.push(ad.discount);
-          const bw = 110;
-          const lineH = 11;
-          const bh = 22 + lines.length * lineH;
-          const bx = Math.max(padL, Math.min(W - padR - bw, tooltipX - bw / 2));
-          const by = tooltipAbove ? ap.y - bh - 10 : ap.y + 10;
+          const bw=110, lineH=11, bh=22+lines.length*lineH;
+          const bx = Math.max(padL, Math.min(W-padR-bw, ap.x-bw/2));
+          const by = ap.y > H/2 ? ap.y-bh-10 : ap.y+10;
           return (
             <g>
-              <rect x={bx} y={by} width={bw} height={bh} rx="6"
-                fill={isDark ? "#0f172a" : "#fff"}
-                stroke={color} strokeWidth="1.2" opacity="0.97"
-                style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.35))" }}
-              />
-              {/* Price — big */}
-              <text x={bx + bw / 2} y={by + 14} textAnchor="middle"
-                fontSize="12" fontWeight="800" fill={color}>
-                {formatValue(ad.value)}
-              </text>
-              {/* Extra lines */}
-              {lines.map((line, li) => (
-                <text key={li} x={bx + bw / 2} y={by + 25 + li * lineH} textAnchor="middle"
-                  fontSize="8.5" fill={isDark ? "#94a3b8" : "#64748b"}>
-                  {line}
-                </text>
-              ))}
+              <rect x={bx} y={by} width={bw} height={bh} rx="6" fill={isDark ? "#0f172a" : "#fff"} stroke={color} strokeWidth="1.2" opacity="0.97" style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.35))" }} />
+              <text x={bx+bw/2} y={by+14} textAnchor="middle" fontSize="12" fontWeight="800" fill={color}>{formatValue(ad.value)}</text>
+              {lines.map((line, li) => <text key={li} x={bx+bw/2} y={by+25+li*lineH} textAnchor="middle" fontSize="8.5" fill={isDark ? "#94a3b8" : "#64748b"}>{line}</text>)}
             </g>
           );
         })()}
       </svg>
-
-      {/* X-axis labels — show first, last, and active */}
       <div className="relative mt-1" style={{ height: 14 }}>
         <span className={`absolute left-0 text-[9px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data[0].label}</span>
         {active !== null && active > 0 && active < data.length - 1 && (
-          <span
-            className={`absolute text-[9px] font-bold transition-all ${isDark ? "text-slate-300" : "text-slate-600"}`}
-            style={{ left: `${(pts[active].x / W) * 100}%`, transform: "translateX(-50%)" }}
-          >
-            {data[active].label}
-          </span>
+          <span className={`absolute text-[9px] font-bold ${isDark ? "text-slate-300" : "text-slate-600"}`} style={{ left:`${(pts[active].x/W)*100}%`, transform:"translateX(-50%)" }}>{data[active].label}</span>
         )}
-        <span className={`absolute right-0 text-[9px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data[data.length - 1].label}</span>
+        <span className={`absolute right-0 text-[9px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>{data[data.length-1].label}</span>
       </div>
-
-      {/* Bottom summary row */}
       <div className={`flex items-center justify-between mt-2 pt-2 border-t ${isDark ? "border-white/5" : "border-black/5"}`}>
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full`} style={{ background: isDark ? "#2dd4bf" : "#0d9488" }} />
-          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>mín {formatValue(minV)}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full bg-green-500`} />
-          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>méd {formatValue(values.reduce((a, b) => a + b, 0) / values.length)}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full`} style={{ background: isDark ? "#f87171" : "#dc2626" }} />
-          <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>máx {formatValue(maxV)}</span>
-        </div>
+        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: isDark ? "#2dd4bf" : "#0d9488" }} /><span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>mín {formatValue(minV)}</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /><span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>méd {formatValue(values.reduce((a,b)=>a+b,0)/values.length)}</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: isDark ? "#f87171" : "#dc2626" }} /><span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>máx {formatValue(maxV)}</span></div>
       </div>
     </div>
   );
 }
 
 // ─── ScaleToggle ──────────────────────────────────────────────────────────────
-interface ScaleToggleProps {
-  baseUnit: string;
-  displayUnit: string;
-  onChange: (unit: string) => void;
-}
-
-export function ScaleToggle({ baseUnit, displayUnit, onChange }: ScaleToggleProps) {
+export function ScaleToggle({ baseUnit, displayUnit, onChange }: { baseUnit: string; displayUnit: string; onChange: (unit: string) => void }) {
   const { isDark } = useContext(ThemeCtx);
   const options = getScaleOptions(baseUnit);
   if (options.length <= 1) return null;
   return (
     <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-      {options.map((opt) => (
-        <button
-          key={opt.unit}
-          onClick={() => onChange(opt.unit)}
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${displayUnit === opt.unit ? "bg-teal-500 text-white shadow" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}
-        >
+      {options.map(opt => (
+        <button key={opt.unit} onClick={() => onChange(opt.unit)}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${displayUnit === opt.unit ? "bg-teal-500 text-white shadow" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
           {opt.unit}
         </button>
       ))}

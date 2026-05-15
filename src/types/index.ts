@@ -9,7 +9,7 @@ export interface Item {
   displayUnit?: string;
   pkgSize?: number;
   pkgUnit?: string;
-  alertDays?: number; // custom threshold, default 15
+  alertDays?: number;
 }
 
 export interface Market {
@@ -47,6 +47,7 @@ export interface ShoppingListItem {
   itemId: string;
   done: boolean;
   saved: false;
+  qty?: number; // quantidade desejada na lista
 }
 
 export interface SavedShoppingList {

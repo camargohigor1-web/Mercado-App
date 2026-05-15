@@ -1,48 +1,48 @@
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, StatBox, ConfirmModal } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getWarehouseUnit, calcStats, getLowStockItems } from "../utils";
-import type { Item, Market, Purchase, ShoppingListEntry, WarehouseItem } from "../types";
+import type { Market } from "../types";
 
 interface WarehouseSectionProps {
-  items: Item[]; purchases: Purchase[]; markets: Market[]; warehouse: WarehouseItem[];
-  setWarehouse: (w: WarehouseItem[]) => void; categories: string[];
-  shoppingList: ShoppingListEntry[]; setShoppingList: (l: ShoppingListEntry[]) => void;
-  onGoToNewPurchase?: () => void; onSelectionChange?: (count: number) => void;
-  initialSearch?: string;
+  onGoToNewPurchase?: () => void;
+  onSelectionChange?: (count: number) => void;
 }
 
-type SortPrimary = "category" | "alpha";
+type SortPrimary   = "category" | "alpha";
 type SortSecondary = "none" | "stock_asc" | "stock_desc" | "days_asc";
 
-export function WarehouseSection({ items, purchases, markets, warehouse, setWarehouse, categories, shoppingList, setShoppingList, onGoToNewPurchase, onSelectionChange, initialSearch }: WarehouseSectionProps) {
+export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: WarehouseSectionProps) {
   const { isDark } = useTheme();
-  const [view, setView] = useState<"current" | "alerts">("current");
-  const [search, setSearch] = useState(initialSearch?.trim() ?? "");
-  const [filterCat, setFilterCat] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { items, purchases, markets, warehouse, setWarehouse, categories, list: shoppingList, setList: setShoppingList } = useAppContext();
+
+  const [view, setView]               = useState<"current" | "alerts">("current");
+  const [search, setSearch]           = useState("");
+  const [filterCat, setFilterCat]     = useState("");
+  const [selectedId, setSelectedId]   = useState<string | null>(null);
   const [updateModal, setUpdateModal] = useState(false);
-  const [updateForm, setUpdateForm] = useState({ qty: "", date: new Date().toISOString().slice(0, 10), note: "" });
+  const [updateForm, setUpdateForm]   = useState({ qty: "", date: new Date().toISOString().slice(0, 10), note: "" });
   const [deleteEntryTarget, setDeleteEntryTarget] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showZeroModal, setShowZeroModal] = useState(false);
-  const [zeroFeedback, setZeroFeedback] = useState<string | null>(null);
-  const [undoSnapshot, setUndoSnapshot] = useState<WarehouseItem[] | null>(null);
-  const [undoTimer, setUndoTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  // Two-axis sort: primary groups, secondary orders within groups
-  const [sortPrimary, setSortPrimary] = useState<SortPrimary>("category");
+  const [zeroFeedback, setZeroFeedback]   = useState<string | null>(null);
+  const [undoSnapshot, setUndoSnapshot]   = useState<typeof warehouse | null>(null);
+  const [undoTimer, setUndoTimer]         = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [sortPrimary, setSortPrimary]     = useState<SortPrimary>("category");
   const [sortSecondary, setSortSecondary] = useState<SortSecondary>("none");
+
   const closeSelectedItem = useBrowserBackClose(selectedId !== null && !updateModal, () => setSelectedId(null));
-  const qtyRef = useRef<HTMLInputElement>(null);
+  const qtyRef  = useRef<HTMLInputElement>(null);
   const dateRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { onSelectionChange?.(selectedIds.size); }, [selectedIds.size]);
 
   const getItem = (id: string) => items.find(i => i.id === id);
-  function getWarehouseItem(itemId: string): WarehouseItem {
+  function getWarehouseItem(itemId: string) {
     return warehouse.find(x => x.itemId === itemId) || { id: "", itemId, stock: 0, purchased: 0, entries: [] };
   }
 
@@ -50,48 +50,38 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
   purchases.forEach(p => p.lines.forEach(l => purchasedItemIds.add(l.itemId)));
   warehouse.forEach(w => purchasedItemIds.add(w.itemId));
 
-  // Compute enriched warehouse items with stock/days info
   const warehouseItems = items
     .filter(item => purchasedItemIds.has(item.id))
     .map(item => {
-      const w = getWarehouseItem(item.id);
+      const w     = getWarehouseItem(item.id);
       const stats = calcStats(item.id, items, purchases, w.entries || []);
-      const factor = item.type === "bulk" ? getDisplayFactor(item) : 1;
-      const stock = (w.stock || 0) * factor;
+      const factor     = item.type === "bulk" ? getDisplayFactor(item) : 1;
+      const stock      = (w.stock || 0) * factor;
       const avgMonthly = stats ? stats.avgMonthly * factor : 0;
-      const daysLeft = avgMonthly > 0 ? Math.round((stock / avgMonthly) * 30) : null;
-      const threshold = item.alertDays ?? 15;
-      const isLow = daysLeft !== null && daysLeft < threshold && item.alertDays !== 0;
+      const daysLeft   = avgMonthly > 0 ? Math.round((stock / avgMonthly) * 30) : null;
+      const threshold  = item.alertDays ?? 15;
+      const isLow      = daysLeft !== null && daysLeft < threshold && item.alertDays !== 0;
       return { item, w, stats, stock, avgMonthly, daysLeft, isLow };
     })
     .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
     .filter(({ item }) => !filterCat || item.category === filterCat);
 
-  // Apply two-axis sort
   const sortedItems = [...warehouseItems].sort((a, b) => {
-    // Primary: category grouping or alphabetical
     let primaryCmp = 0;
-    if (sortPrimary === "category") {
-      primaryCmp = (a.item.category || "").localeCompare(b.item.category || "");
-    } else {
-      primaryCmp = a.item.name.localeCompare(b.item.name);
-    }
+    if (sortPrimary === "category") primaryCmp = (a.item.category || "").localeCompare(b.item.category || "");
+    else primaryCmp = a.item.name.localeCompare(b.item.name);
     if (primaryCmp !== 0) return primaryCmp;
-
-    // Secondary within group
-    if (sortSecondary === "stock_asc") return a.stock - b.stock;
+    if (sortSecondary === "stock_asc")  return a.stock - b.stock;
     if (sortSecondary === "stock_desc") return b.stock - a.stock;
-    if (sortSecondary === "days_asc") return (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999);
-    // none → alphabetical within group
+    if (sortSecondary === "days_asc")   return (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999);
     return a.item.name.localeCompare(b.item.name);
   });
 
   const allLowStockItems = getLowStockItems(items, purchases, warehouse);
-  const lowStockItems = allLowStockItems
+  const lowStockItems    = allLowStockItems
     .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
     .filter(({ item }) => !filterCat || item.category === filterCat);
 
-  // Group sorted items by category (only relevant when primary=category)
   const grouped: Record<string, typeof sortedItems> = {};
   if (sortPrimary === "category") {
     categories.forEach(cat => {
@@ -109,39 +99,41 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
   }
 
   function isInActiveShoppingList(itemId: string) {
-    return shoppingList.some(l => !l.saved && l.itemId === itemId);
+    return shoppingList.some(l => !l.saved && (l as any).itemId === itemId);
   }
+
   function addToShoppingList(itemId: string) {
     if (isInActiveShoppingList(itemId)) return;
-    setShoppingList([...shoppingList, { itemId, done: false, saved: false }]);
+    setShoppingList([...shoppingList, { itemId, done: false, saved: false, qty: 1 } as any]);
   }
 
   function saveUpdate() {
     if (!updateForm.qty || !updateForm.date || !selectedId) return;
-    const item = getItem(selectedId);
-    const factor = (item && item.type === "bulk") ? getDisplayFactor(item) : 1;
+    const item       = getItem(selectedId);
+    const factor     = item?.type === "bulk" ? getDisplayFactor(item) : 1;
     const realQtyBase = parseFloat(updateForm.qty) / factor;
-    const w = getWarehouseItem(selectedId);
+    const w           = getWarehouseItem(selectedId);
     const currentStock = w.stock || 0;
-    const consumed = Math.max(0, currentStock - realQtyBase);
+    const consumed     = Math.max(0, currentStock - realQtyBase);
     const entry = { id: uid(), type: "update" as const, date: updateForm.date, realQty: realQtyBase, previousStock: currentStock, consumed, note: updateForm.note };
     const newWarehouse = [...warehouse];
     const idx = newWarehouse.findIndex(x => x.itemId === selectedId);
-    if (idx >= 0) {
-      newWarehouse[idx] = { ...newWarehouse[idx], stock: realQtyBase, entries: [...(newWarehouse[idx].entries || []), entry] };
-    } else {
-      newWarehouse.push({ id: uid(), itemId: selectedId, stock: realQtyBase, purchased: 0, entries: [entry] });
-    }
+    if (idx >= 0) newWarehouse[idx] = { ...newWarehouse[idx], stock: realQtyBase, entries: [...(newWarehouse[idx].entries || []), entry] };
+    else newWarehouse.push({ id: uid(), itemId: selectedId, stock: realQtyBase, purchased: 0, entries: [entry] });
     setWarehouse(newWarehouse);
     setUpdateModal(false);
   }
 
   function toggleSelect(itemId: string) {
-    setSelectedIds(prev => { const next = new Set(prev); if (next.has(itemId)) next.delete(itemId); else next.add(itemId); return next; });
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      return next;
+    });
   }
 
   function doZeroSelected() {
-    const count = selectedIds.size;
+    const count    = selectedIds.size;
     const snapshot = warehouse.map(item => ({ ...item }));
     setUndoSnapshot(snapshot);
     setWarehouse(warehouse.map(item => selectedIds.has(item.itemId) ? { ...item, stock: 0 } : item));
@@ -161,7 +153,11 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
   }
 
   function removeFromZeroList(itemId: string) {
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(itemId); if (next.size === 0) setTimeout(() => setShowZeroModal(false), 150); return next; });
+    setSelectedIds(prev => {
+      const next = new Set(prev); next.delete(itemId);
+      if (next.size === 0) setTimeout(() => setShowZeroModal(false), 150);
+      return next;
+    });
   }
 
   function doDeleteEntry() {
@@ -169,8 +165,8 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
     const entryId = deleteEntryTarget;
     const newWarehouse = warehouse.map(w => {
       if (w.itemId !== selectedId) return w;
-      const entries = (w.entries || []).filter(e => e.id !== entryId);
-      let newStock = w.purchased || 0;
+      const entries    = (w.entries || []).filter(e => e.id !== entryId);
+      let newStock     = w.purchased || 0;
       entries.forEach(e => { if (e.consumed > 0) newStock -= e.consumed; });
       return { ...w, entries, stock: Math.max(0, newStock) };
     });
@@ -178,9 +174,8 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
     setDeleteEntryTarget(null);
   }
 
-  // Shared item card render
   function ItemCard({ item, stock, avgMonthly, daysLeft, isLow }: typeof sortedItems[0]) {
-    const du = getWarehouseUnit(item);
+    const du        = getWarehouseUnit(item);
     const isChecked = selectedIds.has(item.id);
     return (
       <Card key={item.id} onClick={() => setSelectedId(item.id)} className={`${isDark ? "hover:border-slate-600" : "hover:border-slate-300"} ${isChecked ? (isDark ? "border-amber-500/40 bg-amber-500/5" : "border-amber-300 bg-amber-50/50") : ""}`}>
@@ -219,14 +214,15 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
   if (selectedId && !updateModal) {
     const item = getItem(selectedId);
     if (!item) return null;
-    const w = getWarehouseItem(selectedId);
-    const stats = calcStats(selectedId, items, purchases, w.entries || []);
+    const w      = getWarehouseItem(selectedId);
+    const stats  = calcStats(selectedId, items, purchases, w.entries || []);
     const factor = item.type === "bulk" ? getDisplayFactor(item) : 1;
-    const du = getWarehouseUnit(item);
-    const stockDisplay = (w.stock || 0) * factor;
+    const du     = getWarehouseUnit(item);
+    const stockDisplay     = (w.stock || 0) * factor;
     const purchasedDisplay = (w.purchased || 0) * factor;
     const avgMonthlyDisplay = stats ? stats.avgMonthly * factor : 0;
-    const sortedEntries = [...(w.entries || [])].sort((a, b) => b.date.localeCompare(a.date));
+    const sortedEntries    = [...(w.entries || [])].sort((a, b) => b.date.localeCompare(a.date));
+
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -241,20 +237,19 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
           </div>
           <Btn onClick={() => openUpdate(selectedId)} size="sm" variant="success"><Icon name="refresh" size={13} />Atualizar</Btn>
         </div>
+
         <div className="grid grid-cols-2 gap-2">
           <StatBox label="Em estoque" val={`${fmtN(stockDisplay, item.type === "packaged" ? 0 : 2)} ${du}`} color="teal" />
           <StatBox label="Total comprado" val={`${fmtN(purchasedDisplay, item.type === "packaged" ? 0 : 2)} ${du}`} />
           {stats && <StatBox label="Consumo médio/mês" val={`${fmtN(avgMonthlyDisplay, item.type === "packaged" ? 1 : 2)} ${du}`} color="blue" />}
           {stats && <StatBox label="Último preço" val={item.type === "packaged" ? `${fmt(stats.lastPrice)}/emb` : fmt(stats.lastPrice)} />}
         </div>
+
+        {/* Últimas compras */}
         {(() => {
-          // Last purchases of this item (sorted most recent first)
           const lastPurchases = [...purchases]
             .sort((a, b) => b.date.localeCompare(a.date))
-            .flatMap(p => {
-              const line = p.lines.find(l => l.itemId === selectedId);
-              return line ? [{ p, line }] : [];
-            })
+            .flatMap(p => { const line = p.lines.find(l => l.itemId === selectedId); return line ? [{ p, line }] : []; })
             .slice(0, 3);
           if (!lastPurchases.length) return null;
           const getMktName = (id: string) => markets.find((m: Market) => m.id === id)?.name || "Mercado";
@@ -278,16 +273,9 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
                               <span className="text-teal-400 font-bold ml-2">{fmt((line.pricePerUnit || 0) / factor2)}/{du}</span>
                             </p>
                           ) : (
-                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                              {line.numPkgs} emb × {fmt(line.pricePerPkg)}/emb
-                            </p>
+                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>{line.numPkgs} emb × {fmt(line.pricePerPkg)}/emb</p>
                           )}
-                          {line.discountTotal > 0 && (
-                            <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1">
-                              <Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}
-                            </p>
-                          )}
-                          {p.note && <p className={`text-xs italic mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{p.note}</p>}
+                          {line.discountTotal > 0 && <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1"><Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}</p>}
                         </div>
                         <p className="text-teal-400 font-black text-sm flex-shrink-0">{fmt(line.total)}</p>
                       </div>
@@ -323,6 +311,7 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
             </div>
           </div>
         )}
+
         {deleteEntryTarget && (
           <ConfirmModal title="Remover atualização" message="Remover este registro de atualização de estoque?" confirmLabel="Remover" onConfirm={doDeleteEntry} onCancel={() => setDeleteEntryTarget(null)} />
         )}
@@ -343,37 +332,27 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
         </button>
       </div>
 
-      {/* Search */}
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder={view === "alerts" ? "Buscar alerta..." : "Buscar produto..."}
         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
 
-      {/* Category filter — dropdown */}
       {availableCats.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
-          <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-            className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-            <option value="">Todas as categorias</option>
-            {availableCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </div>
+        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+          className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
+          <option value="">Todas as categorias</option>
+          {availableCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        </select>
       )}
 
-      {view === "current" && (
-        <InfoBox color="blue">O armazém controla seu estoque. Compras aumentam o estoque automaticamente. Use "Atualizar Quantidade" para registrar a contagem real.</InfoBox>
-      )}
+      {view === "current" && <InfoBox color="blue">O armazém controla seu estoque. Compras aumentam o estoque automaticamente. Use "Atualizar" para registrar a contagem real.</InfoBox>}
 
-      {/* Sort controls — two axis */}
+      {/* Sort controls */}
       {view === "current" && warehouseItems.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-col gap-1">
             <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Agrupar por</label>
             <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-              {([
-                { id: "category" as SortPrimary, label: "Categoria" },
-                { id: "alpha"    as SortPrimary, label: "Alfabético" },
-              ]).map(opt => (
+              {([{ id: "category" as SortPrimary, label: "Categoria" }, { id: "alpha" as SortPrimary, label: "Alfabético" }]).map(opt => (
                 <button key={opt.id} onClick={() => setSortPrimary(opt.id)}
                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${sortPrimary === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
                   {opt.label}
@@ -384,12 +363,7 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
           <div className="flex flex-col gap-1">
             <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Ordenar por</label>
             <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-              {([
-                { id: "none"       as SortSecondary, label: "Padrão"        },
-                { id: "stock_asc"  as SortSecondary, label: "↑ Estoque"    },
-                { id: "stock_desc" as SortSecondary, label: "↓ Estoque"    },
-                { id: "days_asc"   as SortSecondary, label: "Menor dias"   },
-              ]).map(opt => (
+              {([{ id: "none" as SortSecondary, label: "Padrão" }, { id: "stock_asc" as SortSecondary, label: "↑ Estoque" }, { id: "stock_desc" as SortSecondary, label: "↓ Estoque" }, { id: "days_asc" as SortSecondary, label: "Menor dias" }]).map(opt => (
                 <button key={opt.id} onClick={() => setSortSecondary(opt.id)}
                   className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${sortSecondary === opt.id ? "bg-slate-600 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
                   {opt.label}
@@ -403,7 +377,7 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
       {/* Alerts view */}
       {view === "alerts" && (
         lowStockItems.length === 0 ? (
-          <Empty icon="warehouse" title="Nenhum alerta de estoque" sub="Os produtos com estoque abaixo do limite configurado aparecerão aqui." />
+          <Empty icon="warehouse" title="Nenhum alerta de estoque" sub="Produtos com estoque abaixo do limite configurado aparecerão aqui." />
         ) : (
           <div className="space-y-2">
             <div className={`flex items-center gap-3 ${isDark ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-200"} border rounded-xl px-4 py-3`}>
@@ -465,26 +439,29 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
         </div>
       ) : (
         <>
-          {/* Selection bar */}
           {selectedIds.size > 0 && (
             <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${isDark ? "bg-amber-500/10 border border-amber-500/30" : "bg-amber-50 border border-amber-200"}`}>
               <span className={`text-xs font-bold ${isDark ? "text-amber-400" : "text-amber-700"}`}>{selectedIds.size} {selectedIds.size === 1 ? "item" : "itens"} selecionado{selectedIds.size !== 1 ? "s" : ""}</span>
               <div className="flex items-center gap-2">
                 <button onClick={() => setSelectedIds(new Set())} className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-700"}`}>Limpar</button>
-                <button onClick={() => setShowZeroModal(true)} className={`text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95 ${isDark ? "bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30" : "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"}`}>
+                <button onClick={() => setShowZeroModal(true)} className={`text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95 ${isDark ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-red-50 text-red-600 border border-red-200"}`}>
                   Zerar selecionados
                 </button>
               </div>
             </div>
           )}
 
-          {/* Grouped by category */}
           {sortPrimary === "category" ? (
             Object.entries(grouped).map(([cat, catItems]) => {
-              const catIds = catItems.map(({ item }) => item.id);
+              const catIds    = catItems.map(({ item }) => item.id);
               const allSelected = catIds.every(id => selectedIds.has(id));
               function toggleCat() {
-                setSelectedIds(prev => { const next = new Set(prev); if (allSelected) catIds.forEach(id => next.delete(id)); else catIds.forEach(id => next.add(id)); return next; });
+                setSelectedIds(prev => {
+                  const next = new Set(prev);
+                  if (allSelected) catIds.forEach(id => next.delete(id));
+                  else catIds.forEach(id => next.add(id));
+                  return next;
+                });
               }
               return (
                 <div key={cat}>
@@ -494,17 +471,12 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
                       {allSelected ? "Desmarcar" : "Selecionar"}
                     </button>
                   </div>
-                  <div className="space-y-2">
-                    {catItems.map(it => <ItemCard key={it.item.id} {...it} />)}
-                  </div>
+                  <div className="space-y-2">{catItems.map(it => <ItemCard key={it.item.id} {...it} />)}</div>
                 </div>
               );
             })
           ) : (
-            // Flat alphabetical list
-            <div className="space-y-2">
-              {sortedItems.map(it => <ItemCard key={it.item.id} {...it} />)}
-            </div>
+            <div className="space-y-2">{sortedItems.map(it => <ItemCard key={it.item.id} {...it} />)}</div>
           )}
         </>
       ))}
@@ -519,8 +491,8 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
                 const item = getItem(itemId); const w = getWarehouseItem(itemId);
                 if (!item) return null;
                 const factor = item.type === "bulk" ? getDisplayFactor(item) : 1;
-                const du = getWarehouseUnit(item);
-                const stock = (w.stock || 0) * factor;
+                const du     = getWarehouseUnit(item);
+                const stock  = (w.stock || 0) * factor;
                 return (
                   <Card key={itemId} className="py-2">
                     <div className="flex items-center justify-between gap-3">
@@ -557,10 +529,10 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
 
       {/* Update modal */}
       {updateModal && selectedId && (() => {
-        const item = getItem(selectedId);
-        const w = getWarehouseItem(selectedId);
-        const factor = (item && item.type === "bulk") ? getDisplayFactor(item) : 1;
-        const du = item ? getWarehouseUnit(item) : "un";
+        const item   = getItem(selectedId);
+        const w      = getWarehouseItem(selectedId);
+        const factor = item?.type === "bulk" ? getDisplayFactor(item) : 1;
+        const du     = item ? getWarehouseUnit(item) : "un";
         const currentStockDisplay = (w.stock || 0) * factor;
         return (
           <Modal title="Atualizar Quantidade" onClose={() => setUpdateModal(false)}>
@@ -570,8 +542,11 @@ export function WarehouseSection({ items, purchases, markets, warehouse, setWare
                 <p className="text-xs text-slate-500 mb-1">Estoque atual calculado</p>
                 <p className="text-2xl font-black text-teal-400">{fmtN(currentStockDisplay, item?.type === "packaged" ? 0 : 2)} <span className="text-base">{du}</span></p>
               </Card>
-              <Inp inputRef={qtyRef} label={`Quantidade real (${du})`} type="number" value={updateForm.qty} onChange={v => setUpdateForm({ ...updateForm, qty: v })} placeholder={item?.type === "packaged" ? "Ex: 5" : "Ex: 250"} min="0" step={item?.type === "packaged" ? "1" : "0.001"} required onEnter={() => { if (dateRef.current) dateRef.current.focus(); }} />
-              <Inp inputRef={dateRef} label="Data da contagem" type="date" value={updateForm.date} onChange={v => setUpdateForm({ ...updateForm, date: v })} required onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
+              <Inp inputRef={qtyRef} label={`Quantidade real (${du})`} type="number" value={updateForm.qty} onChange={v => setUpdateForm({ ...updateForm, qty: v })}
+                placeholder={item?.type === "packaged" ? "Ex: 5" : "Ex: 250"} min="0" step={item?.type === "packaged" ? "1" : "0.001"} required
+                onEnter={() => { if (dateRef.current) dateRef.current.focus(); }} />
+              <Inp inputRef={dateRef} label="Data da contagem" type="date" value={updateForm.date} onChange={v => setUpdateForm({ ...updateForm, date: v })} required
+                onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
               <Inp inputRef={noteRef} label="Observação (opcional)" value={updateForm.note} onChange={v => setUpdateForm({ ...updateForm, note: v })} placeholder="Ex: Encontrei escondido..." onEnter={saveUpdate} />
               {updateForm.qty !== "" && +updateForm.qty >= 0 && (
                 <div className={`${isDark ? "bg-slate-800/60" : "bg-slate-100"} rounded-xl p-3`}>
