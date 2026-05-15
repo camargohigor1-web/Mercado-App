@@ -2,21 +2,25 @@ import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 
 interface RightDrawerProps {
-  open: boolean; onClose: () => void;
-  tab: string; setTab: (t: string) => void;
-  theme: string; setTheme: (t: string) => void;
+  open: boolean;
+  onClose: () => void;
+  tab: string;
+  setTab: (t: string) => void;
+  theme: string;
+  setTheme: (t: string) => void;
 }
 
+// Tabs exclusivos do drawer (não estão na bottom nav)
 const drawerTabs = [
-  { id:"purchases", label:"Nova Compra",  icon:"cart",    desc:"Registre uma nova compra" },
-  { id:"items",     label:"Produtos",     icon:"package", desc:"Cadastre e edite produtos" },
-  { id:"markets",   label:"Mercados",     icon:"store",   desc:"Gerencie supermercados" },
-  { id:"reports",   label:"Relatório",    icon:"chart",   desc:"Gráficos e estatísticas" },
-  { id:"backup",    label:"Backup",       icon:"shield",  desc:"Exporte e importe dados" },
+  { id: "purchases", label: "Nova Compra",  icon: "cart",    desc: "Registre uma nova compra" },
+  { id: "items",     label: "Produtos",     icon: "package", desc: "Cadastre e edite produtos" },
+  { id: "markets",   label: "Mercados",     icon: "store",   desc: "Gerencie supermercados" },
+  { id: "reports",   label: "Relatório",    icon: "chart",   desc: "Gráficos e estatísticas" },
+  { id: "backup",    label: "Backup",       icon: "shield",  desc: "Exporte e importe dados" },
 ];
 
 export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: RightDrawerProps) {
-  const isDark = theme === "dark";
+  const isDark      = theme === "dark";
   const closeDrawer = useBrowserBackClose(open, onClose);
 
   const bg     = isDark ? "bg-slate-950" : "bg-white";
@@ -24,7 +28,6 @@ export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: Rig
 
   return (
     <>
-      {/* Overlay */}
       {open && (
         <div
           className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm animate-fade-in"
@@ -32,7 +35,6 @@ export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: Rig
         />
       )}
 
-      {/* Drawer — slides from right */}
       <div className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] z-40 ${bg} border-l ${border} shadow-2xl transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
 
         {/* Header */}
@@ -48,7 +50,7 @@ export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: Rig
         </div>
 
         {/* Nav items */}
-        <div className="px-3 py-3 space-y-0.5">
+        <div className="px-3 py-3 space-y-0.5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
           {drawerTabs.map(t => {
             const isActive = tab === t.id;
             return (
@@ -78,15 +80,15 @@ export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: Rig
           })}
         </div>
 
-        {/* Theme toggle */}
-        <div className={`mx-3 mt-2 pt-3 border-t ${border}`}>
+        {/* Divisor */}
+        <div className={`mx-3 mt-1 pt-3 border-t ${border}`}>
           <p className={`text-[9px] font-black uppercase tracking-[0.2em] px-1 mb-2.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
             Tema
           </p>
           <div className={`flex gap-2 p-1 rounded-xl ${isDark ? "bg-white/4" : "bg-black/4"}`}>
             {[
-              { val:"dark",  icon:"moon", label:"Escuro" },
-              { val:"light", icon:"sun",  label:"Claro"  },
+              { val: "dark",  icon: "moon", label: "Escuro" },
+              { val: "light", icon: "sun",  label: "Claro"  },
             ].map(opt => (
               <button key={opt.val} onClick={() => setTheme(opt.val)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
@@ -100,10 +102,9 @@ export function RightDrawer({ open, onClose, tab, setTab, theme, setTheme }: Rig
           </div>
         </div>
 
-        {/* Version footer */}
         <div className="absolute bottom-8 left-0 right-0 px-5">
           <p className={`text-[10px] text-center ${isDark ? "text-slate-800" : "text-slate-300"}`}>
-            MercadoApp · v1.0
+            MercadoApp · v2.0
           </p>
         </div>
       </div>

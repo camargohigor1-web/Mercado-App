@@ -1,18 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Empty, StatBox, BarChart } from "./ui";
 import { fmt, fmtN, getLowStockItems, calcStats, getDisplayFactor } from "../utils";
-import type { Item, Market, Purchase, WarehouseItem } from "../types";
+import { MarketComparison } from "./MarketComparison";
 
 interface ReportsSectionProps {
-  items: Item[]; markets: Market[]; purchases: Purchase[];
-  warehouse: WarehouseItem[]; initialMonth?: string;
+  initialMonth?: string;
   onGoToHistoryItem?: (itemId: string) => void;
 }
 
-export function ReportsSection({ items, markets, purchases, warehouse, initialMonth, onGoToHistoryItem }: ReportsSectionProps) {
+export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSectionProps) {
   const { isDark } = useTheme();
+  const { items, markets, purchases, warehouse } = useAppContext();
+
+  const [mainTab, setMainTab] = useState<"gastos" | "mercados">("gastos");
   const [dateFrom, setDateFrom] = useState(initialMonth ? `${initialMonth}-01` : "");
   const [dateTo, setDateTo] = useState(() => {
     if (!initialMonth) return "";
@@ -22,20 +25,50 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
   });
   const [selectedCategory, setSelectedCategory] = useState("");
 
+  const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
+  const getItem = (id: string) => items.find(i => i.id === id);
+
+  const filtered = useMemo(() => purchases.filter(p => {
+    if (dateFrom && p.date < dateFrom) return false;
+    if (dateTo   && p.date > dateTo)   return false;
+    return true;
+  }), [purchases, dateFrom, dateTo]);
+
+  const categoriesWithData = useMemo(() => {
+    const catMap: Record<string, number> = {};
+    filtered.forEach(p => p.lines.forEach(l => {
+      const it = getItem(l.itemId);
+      const cat = it?.category || "Outro";
+      catMap[cat] = (catMap[cat] || 0) + l.total;
+    }));
+    return Object.keys(catMap).sort((a, b) => a.localeCompare(b));
+  }, [filtered, items]);
+
   if (purchases.length === 0) {
     return <Empty icon="chart" title="Sem dados para relatório" sub="Registre algumas compras para visualizar os relatórios e gráficos do seu histórico." />;
   }
 
-  const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
-  const getItem = (id: string) => items.find(i => i.id === id);
+  // ── Sub-tab: Comparativo de Mercados ──────────────────────────────────────
+  if ((mainTab as string) === "mercados") {
+    return (
+      <div className="space-y-4">
+        {/* Tab switcher */}
+        <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
+          <button onClick={() => setMainTab("gastos")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+            Gastos
+          </button>
+          <button onClick={() => setMainTab("mercados")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+            Mercados
+          </button>
+        </div>
+        <MarketComparison initialMonth={initialMonth} />
+      </div>
+    );
+  }
 
-  const filtered = purchases.filter(p => {
-    if (dateFrom && p.date < dateFrom) return false;
-    if (dateTo && p.date > dateTo) return false;
-    return true;
-  });
-
-  const totalSpent    = filtered.reduce((s, p) => s + p.total, 0);
+  const totalSpent     = filtered.reduce((s, p) => s + p.total, 0);
   const uniqueProducts = new Set(filtered.flatMap(p => p.lines.map(l => l.itemId))).size;
 
   const monthlyMap: Record<string, number> = {};
@@ -52,11 +85,11 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
   const marketData = Object.entries(marketMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
   const productMap: Record<string, number> = {};
-  filtered.forEach(p => { p.lines.forEach(l => { productMap[l.itemId] = (productMap[l.itemId] || 0) + l.total; }); });
+  filtered.forEach(p => p.lines.forEach(l => { productMap[l.itemId] = (productMap[l.itemId] || 0) + l.total; }));
   const productData = Object.entries(productMap).map(([id, value]) => ({ label: getItem(id)?.name || "Desconhecido", value })).sort((a, b) => b.value - a.value).slice(0, 8);
 
   const freqMap: Record<string, number> = {};
-  filtered.forEach(p => { p.lines.forEach(l => { freqMap[l.itemId] = (freqMap[l.itemId] || 0) + 1; }); });
+  filtered.forEach(p => p.lines.forEach(l => { freqMap[l.itemId] = (freqMap[l.itemId] || 0) + 1; }));
   const freqData = Object.entries(freqMap).map(([id, value]) => ({ label: getItem(id)?.name || "Desconhecido", value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
   const mktCountMap: Record<string, number> = {};
@@ -71,41 +104,29 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
   const lowStockItems = getLowStockItems(items, purchases, warehouse);
 
   const catMap: Record<string, number> = {};
-  filtered.forEach(p => { p.lines.forEach(l => { const it = getItem(l.itemId); const cat = it?.category || "Outro"; catMap[cat] = (catMap[cat] || 0) + l.total; }); });
+  filtered.forEach(p => p.lines.forEach(l => { const it = getItem(l.itemId); const cat = it?.category || "Outro"; catMap[cat] = (catMap[cat] || 0) + l.total; }));
   const catData = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
-  const categoriesWithData = Object.keys(catMap).sort((a, b) => a.localeCompare(b));
 
-  // ── Category-mode data ────────────────────────────────────────────────────
+  // Category-mode
   const categoryEntries = filtered.flatMap(p =>
-    p.lines
-      .map(line => ({ purchase: p, line, item: getItem(line.itemId), market: getMkt(p.marketId) }))
-      .filter(e => e.item && e.item.category === selectedCategory)
+    p.lines.map(line => ({ purchase: p, line, item: getItem(line.itemId), market: getMkt(p.marketId) }))
+          .filter(e => e.item && e.item.category === selectedCategory)
   );
   const categoryTotalSpent = categoryEntries.reduce((s, e) => s + e.line.total, 0);
   const categoryProductIds = new Set(categoryEntries.map(e => e.line.itemId));
   const categoryPurchaseIds = new Set(categoryEntries.map(e => e.purchase.id));
+
   const categoryMonthlyMap: Record<string, number> = {};
   const categoryMarketMap: Record<string, number> = {};
   const categoryProductSpendMap: Record<string, number> = {};
   const categoryProductFreqMap: Record<string, number> = {};
-  const categoryProductQtyMap: Record<string, { label: string; value: number; unit: string }> = {};
 
-  categoryEntries.forEach(({ purchase, line, item, market }) => {
-    if (!item) return;
+  categoryEntries.forEach(({ purchase, line, market }) => {
     const monthKey = purchase.date.slice(0, 7);
     categoryMonthlyMap[monthKey] = (categoryMonthlyMap[monthKey] || 0) + line.total;
     categoryMarketMap[market] = (categoryMarketMap[market] || 0) + line.total;
-    categoryProductSpendMap[item.id] = (categoryProductSpendMap[item.id] || 0) + line.total;
-    categoryProductFreqMap[item.id] = (categoryProductFreqMap[item.id] || 0) + 1;
-    const qty = item.type === "bulk" ? (line.totalQty || 0) : line.numPkgs;
-    const unit = item.type === "bulk" ? (item.displayUnit || item.unit || "") : "emb";
-    const factor = item.type === "bulk"
-      ? unit === "g" || unit === "mL" ? 1000 : unit === "cm" ? 100 : 1 : 1;
-    categoryProductQtyMap[item.id] = {
-      label: item.name,
-      value: (categoryProductQtyMap[item.id]?.value || 0) + qty * factor,
-      unit,
-    };
+    categoryProductSpendMap[line.itemId] = (categoryProductSpendMap[line.itemId] || 0) + line.total;
+    categoryProductFreqMap[line.itemId] = (categoryProductFreqMap[line.itemId] || 0) + 1;
   });
 
   const categoryMonthlyData = Object.keys(categoryMonthlyMap).sort().slice(-12).map(key => {
@@ -115,11 +136,7 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
   const categoryMarketData = Object.entries(categoryMarketMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
   const categoryProductSpendData = Object.entries(categoryProductSpendMap).map(([id, value]) => ({ label: getItem(id)?.name || "Desconhecido", value })).sort((a, b) => b.value - a.value).slice(0, 8);
   const categoryProductFreqData = Object.entries(categoryProductFreqMap).map(([id, value]) => ({ label: getItem(id)?.name || "Desconhecido", value })).sort((a, b) => b.value - a.value).slice(0, 8);
-  const categoryProductQtyData = Object.values(categoryProductQtyMap).sort((a, b) => b.value - a.value).slice(0, 8).map(e => ({ label: e.label, value: e.value, sub: `${fmtN(e.value, e.unit === "emb" ? 0 : 2)} ${e.unit}` }));
-  const recentCategoryEntries = [...categoryEntries].sort((a, b) => b.purchase.date.localeCompare(a.purchase.date)).slice(0, 10);
-  const categoryAvgPerProduct = categoryProductIds.size > 0 ? categoryTotalSpent / categoryProductIds.size : 0;
 
-  // Per-product price analysis for category view
   const productPriceDetails = Array.from(categoryProductIds).flatMap(id => {
     const item = getItem(id);
     if (!item) return [];
@@ -131,61 +148,60 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
     const du = isUnit ? (item.displayUnit || item.unit || "") : "emb";
     const freq = categoryProductFreqMap[id] || 0;
     const spent = categoryProductSpendMap[id] || 0;
-    const monthKeys = Object.keys(categoryMonthlyMap).sort();
-    const lastMo = monthKeys[monthKeys.length - 1];
-    const prevMo = monthKeys[monthKeys.length - 2];
-    const lastMoSpend = lastMo ? categoryEntries.filter(e => e.purchase.date.startsWith(lastMo) && e.line.itemId === id).reduce((s, e) => s + e.line.total, 0) : 0;
-    const prevMoSpend = prevMo ? categoryEntries.filter(e => e.purchase.date.startsWith(prevMo) && e.line.itemId === id).reduce((s, e) => s + e.line.total, 0) : 0;
-    const trend = prevMoSpend > 0 ? ((lastMoSpend - prevMoSpend) / prevMoSpend) * 100 : null;
     return [{
-      id, item, factor, du, isUnit, freq, spent, trend,
+      id, item, factor, du, isUnit, freq, spent,
       avg: isUnit ? stats.avgPrice / factor : stats.avgPrice,
       min: isUnit ? stats.minPrice / factor : stats.minPrice,
       last: isUnit ? stats.lastPrice / factor : stats.lastPrice,
       unit: isUnit ? `/${du}` : "/emb",
     }];
-  });
-  productPriceDetails.sort((a, b) => b.spent - a.spent);
+  }).sort((a, b) => b.spent - a.spent);
 
+  const recentCategoryEntries = [...categoryEntries].sort((a, b) => b.purchase.date.localeCompare(a.purchase.date)).slice(0, 10);
+  const categoryAvgPerProduct = categoryProductIds.size > 0 ? categoryTotalSpent / categoryProductIds.size : 0;
   const hasFilter = dateFrom || dateTo;
   const categoryMode = Boolean(selectedCategory);
 
-  const card  = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
-  const lbl   = `text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? "text-slate-500" : "text-slate-400"}`;
-  const sub   = `text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`;
+  const card = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
+  const lbl  = `text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? "text-slate-500" : "text-slate-400"}`;
+  const sub  = `text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`;
 
   return (
     <div className="space-y-5">
+      {/* Tab switcher principal */}
+      <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
+        <button onClick={() => setMainTab("gastos")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+          Gastos
+        </button>
+        <button onClick={() => setMainTab("mercados")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+          Mercados
+        </button>
+      </div>
+
       {/* Filters */}
       <div className={card}>
         <p className={lbl}>Filtros</p>
-
-        {/* Quick date presets */}
         <div className="flex flex-col gap-1 mb-3">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período rápido</label>
           <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900/80" : "bg-slate-100"}`}>
             {([
-              { label: "7d",   days: 7   },
-              { label: "1m",   days: 30  },
-              { label: "3m",   days: 90  },
-              { label: "6m",   days: 180 },
-              { label: "1a",   days: 365 },
-              { label: "Tudo", days: 0   },
+              { label: "7d", days: 7 }, { label: "1m", days: 30 }, { label: "3m", days: 90 },
+              { label: "6m", days: 180 }, { label: "1a", days: 365 }, { label: "Tudo", days: 0 },
             ] as { label: string; days: number }[]).map(preset => {
               const isActive = (() => {
                 if (preset.days === 0) return !dateFrom && !dateTo;
                 const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
-                const fromStr = from.toISOString().slice(0, 10);
-                const toStr = new Date().toISOString().slice(0, 10);
-                return dateFrom === fromStr && dateTo === toStr;
+                return dateFrom === from.toISOString().slice(0, 10) && dateTo === new Date().toISOString().slice(0, 10);
               })();
               return (
                 <button key={preset.label} onClick={() => {
-                    if (preset.days === 0) { setDateFrom(""); setDateTo(""); return; }
-                    const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
-                    setDateFrom(from.toISOString().slice(0, 10));
-                    setDateTo(new Date().toISOString().slice(0, 10));
-                  }}
+                  if (preset.days === 0) { setDateFrom(""); setDateTo(""); return; }
+                  const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
+                  setDateFrom(from.toISOString().slice(0, 10));
+                  setDateTo(new Date().toISOString().slice(0, 10));
+                }}
                   className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${isActive ? "bg-teal-500 text-white shadow-sm" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
                   {preset.label}
                 </button>
@@ -194,7 +210,6 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
           </div>
         </div>
 
-        {/* Category filter */}
         <div className="flex flex-col gap-1 mb-3">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
@@ -204,7 +219,6 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
           </select>
         </div>
 
-        {/* Custom date range */}
         <div className="flex flex-col gap-1 mb-1">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período personalizado</label>
           <div className="grid grid-cols-2 gap-3">
@@ -223,7 +237,8 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
                 : `${filtered.length} compra${filtered.length !== 1 ? "s" : ""} no período`}
             </p>
             {hasFilter && (
-              <button onClick={() => { setDateFrom(""); setDateTo(""); }} className={`text-[10px] font-bold flex items-center gap-1 ${isDark ? "text-teal-400 hover:text-teal-300" : "text-teal-600 hover:text-teal-700"}`}>
+              <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className={`text-[10px] font-bold flex items-center gap-1 ${isDark ? "text-teal-400 hover:text-teal-300" : "text-teal-600 hover:text-teal-700"}`}>
                 <Icon name="x" size={10} />Limpar datas
               </button>
             )}
@@ -237,8 +252,7 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
         categoryEntries.length === 0 ? (
           <Empty icon="chart" title="Sem dados nesta categoria" sub="Ajuste a categoria ou o período." />
         ) : (
-          <div key={selectedCategory} className="space-y-5 animate-fade-slide-up">
-            {/* Summary stats */}
+          <div className="space-y-5 animate-fade-slide-up">
             <div>
               <p className={lbl}>Visão — {selectedCategory}</p>
               <div className="grid grid-cols-2 gap-2">
@@ -249,49 +263,28 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
               </div>
             </div>
 
-            {/* Monthly trend */}
             {categoryMonthlyData.length > 0 && (
-              <div className={card}>
-                <p className={lbl}>Evolução mensal</p>
-                <BarChart data={categoryMonthlyData} colorClass="bg-teal-500" formatValue={fmt} />
-              </div>
+              <div className={card}><p className={lbl}>Evolução mensal</p><BarChart data={categoryMonthlyData} colorClass="bg-teal-500" formatValue={fmt} /></div>
             )}
 
-            {/* Per-product price analysis — the new rich section */}
             {productPriceDetails.length > 0 && (
               <div>
                 <p className={lbl}>Análise de preços por produto</p>
                 <div className="space-y-3">
-                  {productPriceDetails.map((pd) => {
-                    const { id, item, freq, spent, avg, min, last, unit, trend } = pd;
-                    const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
+                  {productPriceDetails.map(pd => {
+                    const { id, item, freq, spent, avg, min, last, unit } = pd;
                     const isAboveAvg = last > avg;
+                    const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
                     return (
-                      <div key={id} onClick={() => onGoToHistoryItem?.(id)} className={`rounded-2xl border p-4 transition-all ${isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"} ${onGoToHistoryItem ? "cursor-pointer active:scale-[0.99]" : ""}`}>
-                        {/* Header */}
+                      <div key={id} onClick={() => onGoToHistoryItem?.(id)}
+                        className={`rounded-2xl border p-4 transition-all ${isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"} ${onGoToHistoryItem ? "cursor-pointer active:scale-[0.99]" : ""}`}>
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div>
                             <p className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{item.name}</p>
                             <p className={sub}>{freq}x comprado · {fmt(spent)} total</p>
                           </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            {onGoToHistoryItem && (
-                              <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                                Histórico <Icon name="chevron" size={9} />
-                              </span>
-                            )}
-                            {trend !== null && (
-                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                                trend > 5 ? isDark ? "bg-red-500/15 text-red-400" : "bg-red-50 text-red-600"
-                                : trend < -5 ? isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-50 text-teal-600"
-                                : isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"
-                              }`}>
-                                {trend > 0 ? "+" : ""}{trend.toFixed(0)}%
-                              </span>
-                            )}
-                          </div>
+                          {onGoToHistoryItem && <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Histórico <Icon name="chevron" size={9} /></span>}
                         </div>
-                        {/* Price grid */}
                         <div className="grid grid-cols-3 gap-2">
                           <div className={`rounded-xl p-2.5 ${isDark ? "bg-teal-500/10" : "bg-teal-50"}`}>
                             <p className={`text-[9px] font-black uppercase tracking-wide ${isDark ? "text-teal-600" : "text-teal-500"} mb-1`}>Menor</p>
@@ -311,7 +304,6 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
                             </p>
                           </div>
                         </div>
-                        {/* Savings insight */}
                         {savings > 2 && (
                           <div className={`mt-2.5 flex items-center gap-2 px-3 py-2 rounded-xl ${isDark ? "bg-amber-500/8 border border-amber-500/15" : "bg-amber-50 border border-amber-100"}`}>
                             <Icon name="tag" size={11} />
@@ -327,39 +319,16 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
               </div>
             )}
 
-            {/* Spend by product */}
             {categoryProductSpendData.length > 0 && (
-              <div className={card}>
-                <p className={lbl}>Gasto por produto</p>
-                <BarChart data={categoryProductSpendData} colorClass="bg-blue-500" formatValue={fmt} />
-              </div>
+              <div className={card}><p className={lbl}>Gasto por produto</p><BarChart data={categoryProductSpendData} colorClass="bg-blue-500" formatValue={fmt} /></div>
             )}
-
-            {/* Qty ranking */}
-            {categoryProductQtyData.length > 0 && (
-              <div className={card}>
-                <p className={lbl}>Ranking de saída (quantidade)</p>
-                <BarChart data={categoryProductQtyData} colorClass="bg-amber-500" formatValue={(v: number) => fmtN(v, 1)} />
-              </div>
-            )}
-
-            {/* Frequency */}
             {categoryProductFreqData.length > 0 && (
-              <div className={card}>
-                <p className={lbl}>Frequência por produto</p>
-                <BarChart data={categoryProductFreqData} colorClass="bg-teal-400" formatValue={(v: number) => `${v}x`} />
-              </div>
+              <div className={card}><p className={lbl}>Frequência por produto</p><BarChart data={categoryProductFreqData} colorClass="bg-teal-400" formatValue={(v: number) => `${v}x`} /></div>
             )}
-
-            {/* Market breakdown */}
             {categoryMarketData.length > 1 && (
-              <div className={card}>
-                <p className={lbl}>Gasto por mercado (nesta categoria)</p>
-                <BarChart data={categoryMarketData} colorClass="bg-blue-400" formatValue={fmt} />
-              </div>
+              <div className={card}><p className={lbl}>Gasto por mercado (nesta categoria)</p><BarChart data={categoryMarketData} colorClass="bg-blue-400" formatValue={fmt} /></div>
             )}
 
-            {/* Recent movements */}
             <div className={card}>
               <p className={lbl}>Movimentações recentes</p>
               <div className="space-y-0">
@@ -382,7 +351,6 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
         )
       ) : (
         <>
-          {/* Overview */}
           <div>
             <p className={lbl}>Visão geral</p>
             <div className="grid grid-cols-2 gap-2">
@@ -407,37 +375,11 @@ export function ReportsSection({ items, markets, purchases, warehouse, initialMo
               </div>
             )}
           </div>
-
-          {monthlyData.length > 0 && (
-            <div className={card}>
-              <p className={lbl}>Gastos mensais</p>
-              <BarChart data={monthlyData} colorClass="bg-teal-500" formatValue={fmt} />
-            </div>
-          )}
-          {catData.length > 0 && (
-            <div className={card}>
-              <p className={lbl}>Gastos por categoria</p>
-              <BarChart data={catData} colorClass="bg-blue-500" formatValue={fmt} />
-            </div>
-          )}
-          {marketData.length > 1 && (
-            <div className={card}>
-              <p className={lbl}>Total por mercado</p>
-              <BarChart data={marketData} colorClass="bg-amber-500" formatValue={fmt} />
-            </div>
-          )}
-          {productData.length > 0 && (
-            <div className={card}>
-              <p className={lbl}>Produtos com maior gasto</p>
-              <BarChart data={productData} colorClass="bg-teal-400" formatValue={fmt} />
-            </div>
-          )}
-          {freqData.length > 0 && (
-            <div className={card}>
-              <p className={lbl}>Produtos mais comprados (frequência)</p>
-              <BarChart data={freqData} colorClass="bg-blue-400" formatValue={(v: number) => `${v}x`} />
-            </div>
-          )}
+          {monthlyData.length > 0 && <div className={card}><p className={lbl}>Gastos mensais</p><BarChart data={monthlyData} colorClass="bg-teal-500" formatValue={fmt} /></div>}
+          {catData.length > 0 && <div className={card}><p className={lbl}>Gastos por categoria</p><BarChart data={catData} colorClass="bg-blue-500" formatValue={fmt} /></div>}
+          {marketData.length > 1 && <div className={card}><p className={lbl}>Total por mercado</p><BarChart data={marketData} colorClass="bg-amber-500" formatValue={fmt} /></div>}
+          {productData.length > 0 && <div className={card}><p className={lbl}>Produtos com maior gasto</p><BarChart data={productData} colorClass="bg-teal-400" formatValue={fmt} /></div>}
+          {freqData.length > 0 && <div className={card}><p className={lbl}>Produtos mais comprados (frequência)</p><BarChart data={freqData} colorClass="bg-blue-400" formatValue={(v: number) => `${v}x`} /></div>}
           {lowStockItems.length > 0 && (
             <div className={card}>
               <div className="flex items-center gap-2 mb-3">

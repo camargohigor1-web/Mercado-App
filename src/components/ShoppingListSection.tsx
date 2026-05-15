@@ -1,18 +1,13 @@
 import { useState, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
-import type { Item, Market, Purchase, WarehouseItem, ShoppingListEntry, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
+import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
 
 interface ShoppingListSectionProps {
-  items: Item[];
-  markets: Market[];
-  purchases: Purchase[];
-  warehouse: WarehouseItem[];
-  shoppingList: ShoppingListEntry[];
-  setShoppingList: (l: ShoppingListEntry[]) => void;
   onConvertToPurchase: (lines: PurchaseLine[]) => void;
   onGoToItems?: () => void;
   onGoToHistoryPurchase?: (purchaseId: string) => void;
@@ -20,9 +15,11 @@ interface ShoppingListSectionProps {
 }
 
 export function ShoppingListSection({
-  items, markets, purchases, warehouse, shoppingList, setShoppingList, onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
+  onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
 }: ShoppingListSectionProps) {
   const { isDark } = useTheme();
+  const { items, markets, purchases, warehouse, list: shoppingList, setList: setShoppingList } = useAppContext();
+
   const [listMode, setListMode] = useState<"plan" | "market">("plan");
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
@@ -37,6 +34,8 @@ export function ShoppingListSection({
   const [newOption, setNewOption] = useState({ size: "", price: "" });
   const [convertModal, setConvertModal] = useState(false);
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
+  const [qtyModal, setQtyModal] = useState<{ itemId: string; qty: string } | null>(null);
+  const [shareModal, setShareModal] = useState(false);
   const sizeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
@@ -54,10 +53,25 @@ export function ShoppingListSection({
     .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
     .filter(({ item }) => !filterCatAdd || (item.category || "Sem categoria") === filterCatAdd);
 
-  function add(itemId: string) { setShoppingList([...shoppingList, { itemId, done: false, saved: false }]); }
-  function remove(itemId: string) { setShoppingList(shoppingList.filter(l => l.saved || (l as ShoppingListItem).itemId !== itemId)); }
+  function add(itemId: string) {
+    setShoppingList([...shoppingList, { itemId, done: false, saved: false, qty: 1 }]);
+  }
+  function remove(itemId: string) {
+    setShoppingList(shoppingList.filter(l => l.saved || (l as ShoppingListItem).itemId !== itemId));
+  }
   function toggle(itemId: string) {
-    setShoppingList(shoppingList.map(l => (!l.saved && (l as ShoppingListItem).itemId === itemId) ? { ...l, done: !(l as ShoppingListItem).done } : l));
+    setShoppingList(shoppingList.map(l =>
+      (!l.saved && (l as ShoppingListItem).itemId === itemId)
+        ? { ...l, done: !(l as ShoppingListItem).done }
+        : l
+    ));
+  }
+  function updateQty(itemId: string, qty: number) {
+    setShoppingList(shoppingList.map(l =>
+      (!l.saved && (l as ShoppingListItem).itemId === itemId)
+        ? { ...l, qty: Math.max(1, qty) }
+        : l
+    ));
   }
   function clearDone() { setShoppingList(shoppingList.filter(l => l.saved || !(l as ShoppingListItem).done)); }
   function clearAll() { setShoppingList(shoppingList.filter(l => l.saved)); setClearAllConfirm(false); }
@@ -79,17 +93,56 @@ export function ShoppingListSection({
     setShoppingList(shoppingList.filter(l => !(l.saved && (l as SavedShoppingList).id === id)));
   }
 
+  function buildShareText(): string {
+    const lines: string[] = ['*Lista de Compras 🛒*', ''];
+    const grouped: Record<string, typeof activeList> = {};
+    activeList.forEach(li => {
+      const item = items.find(i => i.id === li.itemId);
+      if (!item) return;
+      const cat = item.category || 'Sem categoria';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(li);
+    });
+    Object.entries(grouped).sort(([a],[b])=>a.localeCompare(b)).forEach(([cat, catItems]) => {
+      lines.push(`*${cat}*`);
+      catItems.forEach(li => {
+        const item = items.find(i => i.id === li.itemId);
+        if (!item) return;
+        const qty = (li as any).qty || 1;
+        const qtyStr = qty > 1 ? `${qty}x ` : '';
+        lines.push(`  ☐ ${qtyStr}${item.name}`);
+      });
+      lines.push('');
+    });
+    lines.push(`_Total: ${activeList.length} item${activeList.length !== 1 ? 's' : ''}_`);
+    return lines.join('\n');
+  }
+
+  function shareViaWhatsApp() {
+    const text = buildShareText();
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  }
+
+  function shareViaText() {
+    const text = buildShareText();
+    if (navigator.share) {
+      navigator.share({ title: 'Lista de Compras', text }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(text).then(() => setShareModal(false)).catch(() => {});
+    }
+  }
+
   function autoSuggest() {
     const ids = available
       .filter(({ stats }) => stats !== null)
       .sort((a, b) => b.stats!.avgMonthly - a.stats!.avgMonthly)
       .slice(0, 8)
       .map(({ item }) => item.id);
-    const toAdd = ids.filter(id => !inList.has(id)).map(id => ({ itemId: id, done: false, saved: false as const }));
+    const toAdd = ids.filter(id => !inList.has(id)).map(id => ({ itemId: id, done: false, saved: false as const, qty: 1 }));
     setShoppingList([...shoppingList, ...toAdd]);
   }
 
-  // Convert active list to purchase lines (only items with history)
   function handleConvertToPurchase() {
     const lines: PurchaseLine[] = activeList
       .map(li => {
@@ -97,45 +150,27 @@ export function ShoppingListSection({
         if (!item) return null;
         const stats = calcStats(li.itemId, items, purchases, warehouse.flatMap(w => w.entries || []));
         if (!stats || !stats.entries.length) return null;
-        // Use last known price and qty
         const last = stats.entries[stats.entries.length - 1];
+        const qty = (li as any).qty || 1;
         if (item.type === "bulk") {
           const pricePerUnit = last.pricePerUnit || 0;
           const pkgQty = last.pkgQty || 1;
-          const numPkgs = 1;
+          const numPkgs = qty;
           const totalQty = numPkgs * pkgQty;
           const pricePerPkg = pricePerUnit * pkgQty;
-          return {
-            itemId: li.itemId, numPkgs, pkgQty, totalQty,
-            pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg,
-            discountTotal: 0, discountPerPkg: 0, pricePerUnit, total: pricePerPkg,
-          } as PurchaseLine;
+          return { itemId: li.itemId, numPkgs, pkgQty, totalQty, pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg, discountTotal: 0, discountPerPkg: 0, pricePerUnit, total: pricePerPkg * numPkgs } as PurchaseLine;
         } else {
           const pricePerPkg = last.pricePerPkg || 0;
           const pricePerInternal = last.pricePerInternal || 0;
-          return {
-            itemId: li.itemId, numPkgs: 1,
-            pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg,
-            discountTotal: 0, discountPerPkg: 0, pricePerInternal, total: pricePerPkg,
-          } as PurchaseLine;
+          return { itemId: li.itemId, numPkgs: qty, pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg, discountTotal: 0, discountPerPkg: 0, pricePerInternal, total: pricePerPkg * qty } as PurchaseLine;
         }
       })
       .filter(Boolean) as PurchaseLine[];
-    if (lines.length > 0) {
-      onConvertToPurchase(lines);
-      setConvertModal(false);
-    }
+    if (lines.length > 0) { onConvertToPurchase(lines); setConvertModal(false); }
   }
 
-  // Decision guide modal
-  function openDecision(item: Item) { setDecisionItem(item); }
-
-  // Price compare (manual market options)
   function openPriceCompare(item: Item) {
-    setCompareItem(item);
-    setCompareOptions([]);
-    setNewOption({ size: "", price: "" });
-    setPriceCompareModal(true);
+    setCompareItem(item); setCompareOptions([]); setNewOption({ size: "", price: "" }); setPriceCompareModal(true);
   }
 
   function addCompareOption() {
@@ -181,16 +216,17 @@ export function ShoppingListSection({
     ...l,
     item: items.find(i => i.id === l.itemId),
     stats: calcStats(l.itemId, items, purchases, warehouse.flatMap(w => w.entries || [])),
+    qty: (l as any).qty || 1,
   })).filter(l => l.item);
 
   const pending = listFull.filter(l => !l.done);
-  const done = listFull.filter(l => l.done);
+  const done    = listFull.filter(l => l.done);
 
   const pendingByCategory: Record<string, typeof pending> = {};
-  pending.forEach(({ itemId, item, stats, done }) => {
-    const cat = item!.category || "Sem categoria";
+  pending.forEach(entry => {
+    const cat = entry.item!.category || "Sem categoria";
     if (!pendingByCategory[cat]) pendingByCategory[cat] = [];
-    pendingByCategory[cat].push({ itemId, item, stats, done, saved: false });
+    pendingByCategory[cat].push(entry);
   });
 
   const categoryOptions = Object.keys(pendingByCategory).sort();
@@ -198,46 +234,80 @@ export function ShoppingListSection({
     ? { [filterCat]: pendingByCategory[filterCat] ?? [] }
     : pendingByCategory;
 
+  // ── QTY Modal ─────────────────────────────────────────────────────────────
+  const QtyModal = () => {
+    if (!qtyModal) return null;
+    const item = items.find(i => i.id === qtyModal.itemId);
+    if (!item) return null;
+    const du = item.type === "bulk" ? (item.displayUnit || item.unit || "un") : "emb";
+    return (
+      <Modal title={`Quantidade — ${item.name}`} onClose={() => setQtyModal(null)}>
+        <div className="space-y-4">
+          <Inp
+            label={`Quantidade (${du})`}
+            type="number"
+            value={qtyModal.qty}
+            onChange={v => setQtyModal({ ...qtyModal, qty: v })}
+            placeholder="1"
+            min="1"
+            step="1"
+            onEnter={() => {
+              const n = parseFloat(qtyModal.qty);
+              if (!isNaN(n) && n > 0) { updateQty(qtyModal.itemId, n); setQtyModal(null); }
+            }}
+          />
+          <div className="flex gap-3">
+            <Btn onClick={() => setQtyModal(null)} variant="secondary" className="flex-1">Cancelar</Btn>
+            <Btn onClick={() => {
+              const n = parseFloat(qtyModal.qty);
+              if (!isNaN(n) && n > 0) { updateQty(qtyModal.itemId, n); setQtyModal(null); }
+            }} className="flex-1">Confirmar</Btn>
+          </div>
+        </div>
+      </Modal>
+    );
+  };
+
   return (
     <div className="space-y-4">
+      {/* Tab toggle */}
       <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-        <button
-          onClick={() => setListMode("plan")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${listMode === "plan" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}
-        >
+        <button onClick={() => setListMode("plan")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${listMode === "plan" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
           Planejar
         </button>
-        <button
-          onClick={() => setListMode("market")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${listMode === "market" ? "bg-blue-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}
-        >
+        <button onClick={() => setListMode("market")}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${listMode === "market" ? "bg-blue-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
           Mercado
         </button>
       </div>
 
-      {/* Toolbar */}
-      {listMode === "plan" && <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-2">
-          {available.some(({ stats }) => stats !== null) && (
-            <Btn onClick={autoSuggest} variant="outline" size="sm"><Icon name="history" size={13} />Sugerir</Btn>
-          )}
-          {savedLists.length > 0 && (
-            <Btn onClick={() => setSavedListsModal(true)} variant="outline" size="sm"><Icon name="list" size={13} />Listas ({savedLists.length})</Btn>
-          )}
+      {/* Toolbar — planejar */}
+      {listMode === "plan" && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-2">
+            {available.some(({ stats }) => stats !== null) && (
+              <Btn onClick={autoSuggest} variant="outline" size="sm"><Icon name="history" size={13} />Sugerir</Btn>
+            )}
+            {savedLists.length > 0 && (
+              <Btn onClick={() => setSavedListsModal(true)} variant="outline" size="sm"><Icon name="list" size={13} />Listas ({savedLists.length})</Btn>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {listFull.some(l => l.done) && <Btn onClick={clearDone} variant="ghost" size="sm">Limpar marcados</Btn>}
+            {activeList.length > 0 && (
+              <>
+                <Btn onClick={() => setClearAllConfirm(true)} variant="danger" size="sm"><Icon name="trash" size={13} /></Btn>
+                <Btn onClick={() => setShareModal(true)} variant="outline" size="sm"><Icon name="share" size={13} /></Btn>
+                <Btn onClick={() => setConvertModal(true)} variant="outline" size="sm"><Icon name="cart" size={13} />Compra</Btn>
+                <Btn onClick={() => { setEditName(""); setEditModal(true); }} variant="success" size="sm"><Icon name="check" size={13} />Salvar</Btn>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {listFull.some(l => l.done) && <Btn onClick={clearDone} variant="ghost" size="sm">Limpar marcados</Btn>}
-          {activeList.length > 0 && (
-            <>
-              <Btn onClick={() => setClearAllConfirm(true)} variant="danger" size="sm"><Icon name="trash" size={13} />Limpar tudo</Btn>
-              <Btn onClick={() => setConvertModal(true)} variant="outline" size="sm"><Icon name="cart" size={13} />Compra</Btn>
-              <Btn onClick={() => { setEditName(""); setEditModal(true); }} variant="success" size="sm"><Icon name="check" size={13} />Salvar</Btn>
-            </>
-          )}
-        </div>
-      </div>}
+      )}
 
-      {/* Market mode */}
+      {/* Modo mercado */}
       {listMode === "market" && (
         listFull.length === 0 ? (
           <Empty icon="list" title="Lista vazia" sub="Volte para Planejar e adicione os produtos antes de ir ao mercado." />
@@ -251,38 +321,31 @@ export function ShoppingListSection({
               {done.length > 0 && <Btn onClick={clearDone} variant="ghost" size="sm">Limpar</Btn>}
             </div>
 
-            {/* Category filter — dropdown */}
             {categoryOptions.length > 1 && (
-              <div className="flex flex-col gap-1">
-                <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Filtrar categoria</label>
-                <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                  className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-                  <option value="">Todas as categorias</option>
-                  {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
+              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+                className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
+                <option value="">Todas as categorias</option>
+                {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
             )}
 
             {pending.length === 0 ? (
-              <Empty icon="check" title="Tudo marcado" sub="Os itens da lista foram marcados como comprados." />
+              <Empty icon="check" title="Tudo marcado!" sub="Os itens da lista foram marcados como comprados." />
             ) : (
               Object.entries(filteredByCategory).map(([cat, catItems]) => (
                 <div key={cat}>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-1">{cat}</p>
                   <div className="space-y-2">
-                    {catItems.map(({ itemId, item, stats }) => {
+                    {catItems.map(({ itemId, item, stats, qty }) => {
                       const it = item!;
                       const du = getDisplayUnit(it);
                       const insights = getItemInsights(it, stats);
                       return (
-                        <Card key={itemId} className={isDark ? "border-slate-800" : "border-slate-200"}>
+                        <Card key={itemId}>
                           <div className="space-y-3">
                             <div className="flex items-start gap-3">
-                              <button
-                                onClick={() => toggle(itemId)}
-                                className="mt-0.5 w-9 h-9 rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 flex-shrink-0 flex items-center justify-center"
-                                title="Marcar comprado"
-                              >
+                              <button onClick={() => toggle(itemId)}
+                                className="mt-0.5 w-9 h-9 rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 flex-shrink-0 flex items-center justify-center">
                                 <Icon name="check" size={17} />
                               </button>
                               <div className="flex-1 min-w-0">
@@ -290,6 +353,12 @@ export function ShoppingListSection({
                                   <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-base font-black`}>{it.name}</p>
                                   <Badge color={it.type === "bulk" ? "teal" : "amber"}>{it.type === "bulk" ? du : `${fmtN(it.pkgSize || 0, 0)} ${it.pkgUnit}`}</Badge>
                                 </div>
+                                {/* Quantidade */}
+                                <button onClick={() => setQtyModal({ itemId, qty: String(qty) })}
+                                  className={`mt-1 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${isDark ? "bg-slate-800 text-teal-400 hover:bg-slate-700" : "bg-slate-100 text-teal-600 hover:bg-slate-200"}`}>
+                                  <Icon name="edit" size={11} />
+                                  Qtd: {qty} {it.type === "bulk" ? "emb" : "emb"}
+                                </button>
                                 {insights ? (
                                   <div className="grid grid-cols-3 gap-2 mt-2">
                                     <div className={`${isDark ? "bg-slate-800/70" : "bg-slate-100"} rounded-xl px-2.5 py-2`}>
@@ -326,12 +395,13 @@ export function ShoppingListSection({
             {done.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest pt-1">Já comprado ({done.length})</p>
-                {done.map(({ itemId, item }) => (
+                {done.map(({ itemId, item, qty }) => (
                   <Card key={itemId} className="opacity-50">
                     <div className="flex items-center gap-3">
                       <button onClick={() => toggle(itemId)} className="w-8 h-8 rounded-xl border border-teal-500 bg-teal-500 flex-shrink-0 flex items-center justify-center"><Icon name="check" size={14} /></button>
                       <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"} line-through flex-1`}>{item!.name}</p>
-                      <button onClick={() => remove(itemId)} className={`p-1 ${isDark ? "text-slate-700 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="x" size={13} /></button>
+                      <span className="text-xs text-slate-600">{qty}x</span>
+                      <button onClick={() => remove(itemId)} className={`p-1 ${isDark ? "text-slate-700" : "text-slate-400"}`}><Icon name="x" size={13} /></button>
                     </div>
                   </Card>
                 ))}
@@ -341,57 +411,61 @@ export function ShoppingListSection({
         )
       )}
 
-      {/* Active list */}
+      {/* Lista ativa — planejar */}
       {listMode === "plan" && listFull.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Para comprar ({pending.length})</p>
           </div>
 
-          {/* Category filter — dropdown */}
           {categoryOptions.length > 1 && (
-            <div className="flex flex-col gap-1">
-              <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Filtrar categoria</label>
-              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-                <option value="">Todas as categorias</option>
-                {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-            </div>
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+              className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
+              <option value="">Todas as categorias</option>
+              {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
           )}
 
           {Object.entries(filteredByCategory).map(([cat, catItems]) => (
             <div key={cat}>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-1">{cat}</p>
               <div className="space-y-2">
-                {catItems.map(({ itemId, item, stats }) => {
+                {catItems.map(({ itemId, item, stats, qty }) => {
                   const it = item!;
                   const du = getDisplayUnit(it);
-                  const insights = getItemInsights(it, stats);
                   const factor = getDisplayFactor(it);
                   return (
                     <Card key={itemId}>
                       <div className="flex items-start gap-3">
-                        <button onClick={() => toggle(itemId)} className={`mt-1 w-5 h-5 rounded-full border-2 ${isDark ? "border-slate-700" : "border-slate-300"} flex-shrink-0 hover:border-teal-500 transition-colors`} />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openDecision(it)}>
+                        <button onClick={() => toggle(itemId)}
+                          className={`mt-1 w-5 h-5 rounded-full border-2 ${isDark ? "border-slate-700" : "border-slate-300"} flex-shrink-0 hover:border-teal-500 transition-colors`} />
+                        <div className="flex-1 min-w-0" onClick={() => setDecisionItem(it)}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
                             <Badge color={it.type === "bulk" ? "teal" : "amber"}>{it.type === "bulk" ? du : `${fmtN(it.pkgSize || 0, 0)} ${it.pkgUnit}`}</Badge>
                           </div>
-                          {insights && <p className="text-[10px] text-slate-600 mt-1">Consumo: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{insights.consumption}</span></p>}
-                          {stats ? (
+                          {stats && (
                             <div className="flex flex-wrap gap-x-3 mt-1">
                               <span className="text-[10px] text-slate-600">Médio: <span className="text-green-400 font-semibold">{it.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
-                              <span className="text-[10px] text-slate-600">Menor: <span className="text-teal-400">{it.type === "bulk" ? fmt(stats.minPrice / factor) : fmt(stats.minPrice)}</span></span>
                               <span className="text-[10px] text-slate-600">Último: <span className="text-blue-400">{it.type === "bulk" ? fmt(stats.lastPrice / factor) : fmt(stats.lastPrice)}</span></span>
                             </div>
-                          ) : (
-                            <p className="text-[10px] text-slate-700 mt-1">Sem histórico de compras</p>
                           )}
                         </div>
-                        <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
-                          <button onClick={() => openPriceCompare(it)} className={`p-1 ${isDark ? "text-slate-700 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"} transition-colors`} title="Comparar preços"><Icon name="scale" size={13} /></button>
-                          <button onClick={() => remove(itemId)} className={`p-1 ${isDark ? "text-slate-700 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors`}><Icon name="x" size={13} /></button>
+                        {/* Quantidade inline */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => updateQty(itemId, qty - 1)}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center text-sm font-black transition-colors ${isDark ? "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                            −
+                          </button>
+                          <span className={`text-xs font-black w-5 text-center ${isDark ? "text-slate-200" : "text-slate-800"}`}>{qty}</span>
+                          <button onClick={() => updateQty(itemId, qty + 1)}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center text-sm font-black transition-colors ${isDark ? "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                            +
+                          </button>
+                        </div>
+                        <div className="flex gap-0.5 flex-shrink-0">
+                          <button onClick={() => openPriceCompare(it)} className={`p-1 ${isDark ? "text-slate-700 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"}`}><Icon name="scale" size={13} /></button>
+                          <button onClick={() => remove(itemId)} className={`p-1 ${isDark ? "text-slate-700 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="x" size={13} /></button>
                         </div>
                       </div>
                     </Card>
@@ -404,11 +478,12 @@ export function ShoppingListSection({
           {done.length > 0 && (
             <>
               <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest pt-1">Já comprado ({done.length})</p>
-              {done.map(({ itemId, item }) => (
+              {done.map(({ itemId, item, qty }) => (
                 <Card key={itemId} className="opacity-40">
                   <div className="flex items-center gap-3">
                     <button onClick={() => toggle(itemId)} className="w-5 h-5 rounded-full border-2 border-teal-500 bg-teal-500 flex-shrink-0 flex items-center justify-center"><Icon name="check" size={11} /></button>
                     <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"} line-through flex-1`}>{item!.name}</p>
+                    <span className="text-xs text-slate-600">{qty}x</span>
                     <button onClick={() => remove(itemId)} className={`p-1 ${isDark ? "text-slate-800" : "text-slate-300"}`}><Icon name="x" size={13} /></button>
                   </div>
                 </Card>
@@ -418,70 +493,68 @@ export function ShoppingListSection({
         </div>
       )}
 
-      {/* Add items */}
-      {listMode === "plan" && <div>
-        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Adicionar à lista</p>
-        {addCategoryOptions.length > 1 && (
-          <div className="flex flex-col gap-1 mb-2">
-            <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
-            <select value={filterCatAdd} onChange={e => setFilterCatAdd(e.target.value)}
-              className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-              <option value="">Todas as categorias</option>
-              {addCategoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-          </div>
-        )}
-        <Inp value={search} onChange={setSearch} placeholder="Buscar produto..." />
-        {filtAvail.length === 0 ? (
-          items.length === 0 ? (
-            <div className="flex flex-col items-center text-center py-8 gap-3 px-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                <Icon name="package" size={20} />
-              </div>
-              <div className="space-y-1">
-                <p className={`font-black text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>Nenhum produto cadastrado</p>
-                <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Cadastre produtos para montar sua lista de compras.</p>
-              </div>
-              {onGoToItems && (
-                <button
-                  onClick={onGoToItems}
-                  className="px-4 py-2 rounded-xl bg-teal-500 text-white text-xs font-black shadow-md shadow-teal-500/25 active:scale-95 transition-transform flex items-center gap-1.5"
-                >
-                  <Icon name="plus" size={13} />
-                  Cadastrar produtos
-                </button>
-              )}
+      {/* Adicionar à lista */}
+      {listMode === "plan" && (
+        <div>
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Adicionar à lista</p>
+          {addCategoryOptions.length > 1 && (
+            <div className="mb-2">
+              <select value={filterCatAdd} onChange={e => setFilterCatAdd(e.target.value)}
+                className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
+                <option value="">Todas as categorias</option>
+                {addCategoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
             </div>
-          ) : items.length === inList.size ? (
-            <p className={`text-xs text-center py-5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Todos os produtos já estão na lista</p>
+          )}
+          <Inp value={search} onChange={setSearch} placeholder="Buscar produto..." />
+          {filtAvail.length === 0 ? (
+            items.length === 0 ? (
+              <div className="flex flex-col items-center text-center py-8 gap-3 px-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-100"}`}><Icon name="package" size={20} /></div>
+                <div className="space-y-1">
+                  <p className={`font-black text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>Nenhum produto cadastrado</p>
+                  <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Cadastre produtos para montar sua lista de compras.</p>
+                </div>
+                {onGoToItems && (
+                  <button onClick={onGoToItems} className="px-4 py-2 rounded-xl bg-teal-500 text-white text-xs font-black flex items-center gap-1.5">
+                    <Icon name="plus" size={13} />Cadastrar produtos
+                  </button>
+                )}
+              </div>
+            ) : items.length === inList.size ? (
+              <p className={`text-xs text-center py-5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Todos os produtos já estão na lista</p>
+            ) : (
+              <p className={`text-xs text-center py-5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Nenhum resultado</p>
+            )
           ) : (
-            <p className={`text-xs text-center py-5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Nenhum resultado</p>
-          )
-        ) : (
-          <div className="space-y-2 mt-2">
-            {filtAvail.map(({ item, stats }) => {
-              const du = getDisplayUnit(item);
-              const factor = getDisplayFactor(item);
-              return (
-                <button key={item.id} onClick={() => add(item.id)} className="w-full text-left">
-                  <Card className={`flex items-center justify-between ${isDark ? "hover:border-teal-500/40" : "hover:border-teal-400"}`}>
-                    <div>
-                      <p className={`${isDark ? "text-slate-200" : "text-slate-800"} text-sm font-medium`}>{item.name}</p>
-                      <p className="text-[10px] mt-0.5">
-                        {stats
-                          ? <span>Médio <span className="text-green-400 font-semibold">{item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
-                          : <span className="text-slate-600">Sem histórico</span>
-                        }
-                      </p>
-                    </div>
-                    <div className="text-teal-500 flex-shrink-0"><Icon name="plus" size={16} /></div>
-                  </Card>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>}
+            <div className="space-y-2 mt-2">
+              {filtAvail.map(({ item, stats }) => {
+                const du = getDisplayUnit(item);
+                const factor = getDisplayFactor(item);
+                return (
+                  <button key={item.id} onClick={() => add(item.id)} className="w-full text-left">
+                    <Card className={`flex items-center justify-between ${isDark ? "hover:border-teal-500/40" : "hover:border-teal-400"}`}>
+                      <div>
+                        <p className={`${isDark ? "text-slate-200" : "text-slate-800"} text-sm font-medium`}>{item.name}</p>
+                        <p className="text-[10px] mt-0.5">
+                          {stats
+                            ? <span>Médio <span className="text-green-400 font-semibold">{item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
+                            : <span className="text-slate-600">Sem histórico</span>
+                          }
+                        </p>
+                      </div>
+                      <div className="text-teal-500 flex-shrink-0"><Icon name="plus" size={16} /></div>
+                    </Card>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal de quantidade */}
+      <QtyModal />
 
       {/* Decision Guide Modal */}
       {decisionItem && (() => {
@@ -506,8 +579,6 @@ export function ShoppingListSection({
               <div className="flex gap-1.5 flex-wrap">
                 <Badge color={item.type === "bulk" ? "teal" : "amber"}>{item.type === "bulk" ? "Granel" : "Emb. fixa"}</Badge>
                 <Badge>{item.category}</Badge>
-                {item.type === "bulk" && <Badge>{du}</Badge>}
-                {item.type === "packaged" && item.pkgSize && <Badge>{fmtN(item.pkgSize, 0)} {item.pkgUnit}/emb</Badge>}
               </div>
 
               {!stats ? (
@@ -517,53 +588,27 @@ export function ShoppingListSection({
                   <div className="grid grid-cols-2 gap-2">
                     {item.type === "bulk" ? (
                       <>
-                        <div className="bg-teal-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-teal-700 mb-0.5">Menor preço/{du}</p>
-                          <p className="font-black text-sm text-teal-400">{fmt(stats.minPrice / factor)}</p>
-                        </div>
-                        <div className="bg-green-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-green-700 mb-0.5">Preço médio/{du}</p>
-                          <p className="font-black text-sm text-green-400">{fmt(stats.avgPrice / factor)}</p>
-                        </div>
-                        <div className="bg-blue-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-blue-700 mb-0.5">Último preço/{du}</p>
-                          <p className="font-black text-sm text-blue-400">{fmt(stats.lastPrice / factor)}</p>
-                        </div>
-                        <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-xl p-3`}>
-                          <p className="text-[10px] text-slate-500 mb-0.5">Consumo médio/mês</p>
-                          <p className="font-black text-sm">{fmtN(stats.avgMonthly * factor, 2)} {du}</p>
-                        </div>
+                        <div className="bg-teal-500/10 rounded-xl p-3"><p className="text-[10px] text-teal-700 mb-0.5">Menor preço/{du}</p><p className="font-black text-sm text-teal-400">{fmt(stats.minPrice / factor)}</p></div>
+                        <div className="bg-green-500/10 rounded-xl p-3"><p className="text-[10px] text-green-700 mb-0.5">Preço médio/{du}</p><p className="font-black text-sm text-green-400">{fmt(stats.avgPrice / factor)}</p></div>
+                        <div className="bg-blue-500/10 rounded-xl p-3"><p className="text-[10px] text-blue-700 mb-0.5">Último preço/{du}</p><p className="font-black text-sm text-blue-400">{fmt(stats.lastPrice / factor)}</p></div>
+                        <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-xl p-3`}><p className="text-[10px] text-slate-500 mb-0.5">Consumo médio/mês</p><p className="font-black text-sm">{fmtN(stats.avgMonthly * factor, 2)} {du}</p></div>
                       </>
                     ) : (
                       <>
-                        <div className="bg-teal-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-teal-700 mb-0.5">Menor preço/emb</p>
-                          <p className="font-black text-sm text-teal-400">{fmt(stats.minPrice)}</p>
-                        </div>
-                        <div className="bg-green-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-green-700 mb-0.5">Preço médio/emb</p>
-                          <p className="font-black text-sm text-green-400">{fmt(stats.avgPrice)}</p>
-                        </div>
-                        <div className="bg-blue-500/10 rounded-xl p-3">
-                          <p className="text-[10px] text-blue-700 mb-0.5">Último preço/emb</p>
-                          <p className="font-black text-sm text-blue-400">{fmt(stats.lastPrice)}</p>
-                        </div>
-                        <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-xl p-3`}>
-                          <p className="text-[10px] text-slate-500 mb-0.5">Consumo médio/mês</p>
-                          <p className="font-black text-sm">{fmtN(stats.avgMonthly, 1)} emb</p>
-                        </div>
+                        <div className="bg-teal-500/10 rounded-xl p-3"><p className="text-[10px] text-teal-700 mb-0.5">Menor preço/emb</p><p className="font-black text-sm text-teal-400">{fmt(stats.minPrice)}</p></div>
+                        <div className="bg-green-500/10 rounded-xl p-3"><p className="text-[10px] text-green-700 mb-0.5">Preço médio/emb</p><p className="font-black text-sm text-green-400">{fmt(stats.avgPrice)}</p></div>
+                        <div className="bg-blue-500/10 rounded-xl p-3"><p className="text-[10px] text-blue-700 mb-0.5">Último preço/emb</p><p className="font-black text-sm text-blue-400">{fmt(stats.lastPrice)}</p></div>
+                        <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-xl p-3`}><p className="text-[10px] text-slate-500 mb-0.5">Consumo médio/mês</p><p className="font-black text-sm">{fmtN(stats.avgMonthly, 1)} emb</p></div>
                       </>
                     )}
                   </div>
 
-                  {/* Price evolution chart */}
                   {allEntries.length >= 2 && (() => {
-                    const chronoEntries = [...allEntries].sort((a: any, b: any) => a.date.localeCompare(b.date));
-                    const priceEvolution: LineChartPoint[] = chronoEntries.map((e: any) => ({
+                    const chronoEntries = [...allEntries].sort((a, b) => a.date.localeCompare(b.date));
+                    const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
                       label: new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
                       value: item.type === "bulk" ? (e.pricePerUnit || 0) / factor : (e.pricePerPkgAfterDiscount ?? e.pricePerPkg),
-                      date: e.date,
-                      market: e.market,
+                      date: e.date, market: e.market,
                       qty: item.type === "bulk" ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}` : `${e.numPkgs} emb`,
                       discount: e.discountTotal > 0 ? `Desc: ${fmt(e.discountTotal)}` : undefined,
                     }));
@@ -581,19 +626,11 @@ export function ShoppingListSection({
                         {recentEntries.map((e: any, i: number) => {
                           const canNav = !!(onGoToHistoryPurchaseWithProduct || onGoToHistoryPurchase);
                           return (
-                            <div
-                              key={i}
-                              onClick={() => {
-                                if (onGoToHistoryPurchaseWithProduct) {
-                                  setDecisionItem(null);
-                                  onGoToHistoryPurchaseWithProduct(e.purchaseId, item.id);
-                                } else if (onGoToHistoryPurchase) {
-                                  setDecisionItem(null);
-                                  onGoToHistoryPurchase(e.purchaseId);
-                                }
-                              }}
-                              className={`flex items-center justify-between px-3 py-2.5 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl ${canNav ? "cursor-pointer active:scale-95 transition-transform hover:border-teal-500/40" : ""}`}
-                            >
+                            <div key={i} onClick={() => {
+                              if (onGoToHistoryPurchaseWithProduct) { setDecisionItem(null); onGoToHistoryPurchaseWithProduct(e.purchaseId, item.id); }
+                              else if (onGoToHistoryPurchase) { setDecisionItem(null); onGoToHistoryPurchase(e.purchaseId); }
+                            }}
+                              className={`flex items-center justify-between px-3 py-2.5 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl ${canNav ? "cursor-pointer active:scale-95 transition-transform" : ""}`}>
                               <div>
                                 <p className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{e.market}</p>
                                 <p className="text-[10px] text-slate-500">{new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" })}</p>
@@ -601,22 +638,11 @@ export function ShoppingListSection({
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
                                   <p className="text-xs font-bold text-teal-400">
-                                    {item.type === "bulk"
-                                      ? `${fmt((e.pricePerUnit || 0) / factor)}/${du}`
-                                      : `${fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb`
-                                    }
+                                    {item.type === "bulk" ? `${fmt((e.pricePerUnit || 0) / factor)}/${du}` : `${fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb`}
                                   </p>
                                   {e.discountTotal > 0 && <p className="text-[10px] text-amber-400">c/ desc</p>}
-                                  <p className="text-[10px] text-slate-500">
-                                    {item.type === "bulk" ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}` : `${e.numPkgs} emb`}
-                                  </p>
                                 </div>
-                                {canNav && (
-                                  <div className={`flex items-center gap-0.5 ${isDark ? "text-teal-500" : "text-teal-600"}`}>
-                                    <Icon name="history" size={11} />
-                                    <Icon name="chevron" size={12} />
-                                  </div>
-                                )}
+                                {canNav && <Icon name="chevron" size={12} />}
                               </div>
                             </div>
                           );
@@ -640,12 +666,11 @@ export function ShoppingListSection({
         const best = calculateBestOption();
         const du = getDisplayUnit(compareItem);
         return (
-          <Modal title={`Comparar Preços — ${compareItem.name}`} onClose={() => setPriceCompareModal(false)}>
+          <Modal title={`Comparar — ${compareItem.name}`} onClose={() => setPriceCompareModal(false)}>
             <div className="space-y-4">
-              <InfoBox color="blue">Compare diferentes tamanhos/embalagens disponíveis no mercado para encontrar o melhor custo-benefício por unidade.</InfoBox>
+              <InfoBox color="blue">Compare diferentes tamanhos para encontrar o melhor custo-benefício por unidade.</InfoBox>
               {compareOptions.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Opções registradas</p>
                   {compareOptions.map((opt, idx) => {
                     const pricePerUnit = opt.priceNum / opt.sizeNum;
                     const isBest = best && Math.abs(best.pricePerUnit - pricePerUnit) < 0.001;
@@ -659,21 +684,15 @@ export function ShoppingListSection({
                             </div>
                             <p className="text-xs text-slate-500">{fmt(opt.priceNum)} · <span className="text-teal-400 font-semibold">{fmt(pricePerUnit)}/{opt.unit}</span></p>
                           </div>
-                          <button onClick={() => setCompareOptions(compareOptions.filter((_, i) => i !== idx))} className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors flex-shrink-0`}><Icon name="trash" size={13} /></button>
+                          <button onClick={() => setCompareOptions(compareOptions.filter((_, i) => i !== idx))} className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={13} /></button>
                         </div>
                       </Card>
                     );
                   })}
                 </div>
               )}
-              {compareOptions.length === 0 && (
-                <div className={`${isDark ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl px-4 py-5 text-center`}>
-                  <p className="text-xs font-semibold text-slate-500">Nenhuma opção adicionada</p>
-                  <p className="text-[10px] text-slate-600 mt-1">Digite abaixo os preços e quantidades encontrados no mercado.</p>
-                </div>
-              )}
               <div className={`space-y-3 ${isDark ? "bg-slate-900/50" : "bg-slate-50"} rounded-xl p-3`}>
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Adicionar nova opção</p>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Adicionar opção</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Inp inputRef={sizeRef} label={`Quantidade (${du})`} type="number" value={newOption.size} onChange={v => setNewOption({ ...newOption, size: v })} placeholder="Ex: 500" min="0.001" step="0.001"
                     onEnter={() => { if (priceRef.current) priceRef.current.focus(); }} />
@@ -710,7 +729,7 @@ export function ShoppingListSection({
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <Btn onClick={() => loadSavedList(list)} size="sm" variant="success"><Icon name="copy" size={12} />Carregar</Btn>
-                      <button onClick={() => deleteSavedList(list.id)} className={`p-1.5 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors`}><Icon name="trash" size={13} /></button>
+                      <button onClick={() => deleteSavedList(list.id)} className={`p-1.5 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={13} /></button>
                     </div>
                   </div>
                 </Card>
@@ -721,11 +740,10 @@ export function ShoppingListSection({
         </Modal>
       )}
 
-      {/* Save List Modal */}
       {editModal && (
         <Modal title="Salvar Lista de Compras" onClose={() => setEditModal(false)}>
           <div className="space-y-4">
-            <Inp label="Nome da lista" value={editName} onChange={setEditName} placeholder="Ex: Compras do mês, Lista semanal..." required onEnter={saveList} />
+            <Inp label="Nome da lista" value={editName} onChange={setEditName} placeholder="Ex: Compras do mês..." required onEnter={saveList} />
             <div className="flex gap-3">
               <Btn onClick={() => setEditModal(false)} variant="secondary" className="flex-1">Cancelar</Btn>
               <Btn onClick={saveList} disabled={!editName.trim()} className="flex-1">Salvar</Btn>
@@ -734,20 +752,23 @@ export function ShoppingListSection({
         </Modal>
       )}
 
-      {/* Convert to Purchase Modal */}
       {convertModal && (
         <Modal title="Converter em Compra" onClose={() => setConvertModal(false)}>
           <div className="space-y-4">
-            <InfoBox color="teal">Os itens com histórico de preços serão adicionados à nova compra com o último preço registrado. Você poderá ajustar os valores antes de salvar.</InfoBox>
+            <InfoBox color="teal">Os itens com histórico serão adicionados com o último preço registrado. Ajuste os valores antes de salvar.</InfoBox>
             <div className="space-y-1.5">
               {activeList.map(li => {
                 const item = items.find(i => i.id === li.itemId);
                 const stats = calcStats(li.itemId, items, purchases, warehouse.flatMap(w => w.entries || []));
                 if (!item) return null;
                 const hasHistory = stats && stats.entries.length > 0;
+                const qty = (li as any).qty || 1;
                 return (
                   <div key={li.itemId} className={`flex items-center justify-between px-3 py-2 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl`}>
-                    <p className={`text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
+                    <div>
+                      <p className={`text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
+                      <p className="text-xs text-slate-500">Qtd: {qty}</p>
+                    </div>
                     {hasHistory ? <Badge color="teal">incluso</Badge> : <Badge color="slate">sem histórico</Badge>}
                   </div>
                 );
@@ -762,13 +783,70 @@ export function ShoppingListSection({
       )}
 
       {clearAllConfirm && (
-        <ConfirmModal
-          title="Limpar lista inteira"
-          message="Remover todos os itens da lista ativa? Os itens marcados como comprados também serão removidos."
-          confirmLabel="Limpar tudo"
-          onConfirm={clearAll}
-          onCancel={() => setClearAllConfirm(false)}
-        />
+        <ConfirmModal title="Limpar lista inteira" message="Remover todos os itens da lista ativa? Os itens marcados como comprados também serão removidos."
+          confirmLabel="Limpar tudo" onConfirm={clearAll} onCancel={() => setClearAllConfirm(false)} />
+      )}
+
+      {/* Share Modal */}
+      {shareModal && activeList.length > 0 && (
+        <Modal title="Compartilhar Lista" onClose={() => setShareModal(false)}>
+          <div className="space-y-4">
+            {/* Preview da lista */}
+            <div className={`rounded-xl p-4 font-mono text-xs leading-relaxed ${isDark ? "bg-slate-900 border border-slate-800 text-slate-300" : "bg-slate-50 border border-slate-200 text-slate-700"}`}>
+              <p className="font-black mb-2">Lista de Compras 🛒</p>
+              {(() => {
+                const grouped: Record<string, typeof activeList> = {};
+                activeList.forEach(li => {
+                  const item = items.find(i => i.id === li.itemId);
+                  if (!item) return;
+                  const cat = item.category || 'Sem categoria';
+                  if (!grouped[cat]) grouped[cat] = [];
+                  grouped[cat].push(li);
+                });
+                return Object.entries(grouped).sort(([a],[b])=>a.localeCompare(b)).map(([cat, catItems]) => (
+                  <div key={cat} className="mb-2">
+                    <p className={`font-bold text-[11px] mb-1 ${isDark ? "text-teal-400" : "text-teal-600"}`}>{cat}</p>
+                    {catItems.map(li => {
+                      const item = items.find(i => i.id === li.itemId);
+                      if (!item) return null;
+                      const qty = (li as any).qty || 1;
+                      return (
+                        <p key={li.itemId} className="ml-2">
+                          ☐ {qty > 1 ? `${qty}x ` : ''}{item.name}
+                        </p>
+                      );
+                    })}
+                  </div>
+                ));
+              })()}
+              <p className={`mt-2 text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Total: {activeList.length} item{activeList.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            {/* Botões de compartilhamento */}
+            <div className="space-y-2">
+              <button
+                onClick={shareViaWhatsApp}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-green-500 text-white font-bold text-sm transition-all active:scale-95 press-scale"
+              >
+                <Icon name="whatsapp" size={20} />
+                Compartilhar no WhatsApp
+              </button>
+              <button
+                onClick={() => { shareViaText(); setShareModal(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-95 press-scale ${isDark ? "bg-white/5 text-slate-200 border border-white/10 hover:bg-white/10" : "bg-black/5 text-slate-700 border border-black/10 hover:bg-black/8"}`}
+              >
+                <Icon name="share" size={18} />
+                {'share' in navigator ? 'Compartilhar…' : 'Copiar texto'}
+              </button>
+            </div>
+
+            <Btn onClick={() => setShareModal(false)} variant="secondary" className="w-full justify-center">
+              Fechar
+            </Btn>
+          </div>
+        </Modal>
       )}
     </div>
   );

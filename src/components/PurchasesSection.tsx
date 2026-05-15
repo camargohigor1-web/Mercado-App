@@ -1,29 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
-import type { Item, Market, Purchase, PurchaseLine, WarehouseItem } from "../types";
+import type { Item, Purchase, PurchaseLine, WarehouseItem } from "../types";
 
 interface PurchasesSectionProps {
-  items: Item[];
-  markets: Market[];
-  purchases: Purchase[];
-  setPurchases: (p: Purchase[]) => void;
-  setItems: (items: Item[]) => void;
-  warehouse: WarehouseItem[];
-  setWarehouse: (w: WarehouseItem[]) => void;
-  categories: string[];
-  setCategories: (cats: string[]) => void;
   initialLines?: PurchaseLine[];
   onCreatedFromList?: () => void;
+  onPurchaseSaved?: () => void;
 }
 
-export function PurchasesSection({
-  items, markets, purchases, setPurchases, setItems, warehouse, setWarehouse, categories, setCategories,
-  initialLines, onCreatedFromList,
-}: PurchasesSectionProps) {
+export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSaved }: PurchasesSectionProps) {
   const { isDark } = useTheme();
+  const { items, setItems, markets, purchases, setPurchases, warehouse, setWarehouse, categories, setCategories } = useAppContext();
+
   const [view, setView] = useState<"list" | "new" | "detail">(initialLines ? "new" : "new");
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
@@ -43,11 +35,9 @@ export function PurchasesSection({
     alertDays: "15",
   });
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  // Export selection
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Reset form whenever initialLines changes (e.g. "Repetir compra" triggered again)
   useEffect(() => {
     if (initialLines && initialLines.length > 0) {
       setForm({
@@ -61,19 +51,18 @@ export function PurchasesSection({
     }
   }, [initialLines]);
 
-  const numPkgsRef = useRef<HTMLInputElement>(null);
-  const pkgQtyRef = useRef<HTMLInputElement>(null);
-  const priceRef = useRef<HTMLInputElement>(null);
+  const numPkgsRef  = useRef<HTMLInputElement>(null);
+  const pkgQtyRef   = useRef<HTMLInputElement>(null);
+  const priceRef    = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
-  const brandRef = useRef<HTMLInputElement>(null);
-  const noteRef = useRef<HTMLInputElement>(null);
-  const productNameRef = useRef<HTMLInputElement>(null);
+  const brandRef    = useRef<HTMLInputElement>(null);
+  const noteRef     = useRef<HTMLInputElement>(null);
+  const productNameRef    = useRef<HTMLInputElement>(null);
   const productPkgSizeRef = useRef<HTMLInputElement>(null);
 
   const getItem = (id: string) => items.find(i => i.id === id);
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
 
-  // ── Line modal ────────────────────────────────────────────────────────────
   function openLine(idx: number | null = null) {
     if (idx !== null) {
       const l = form.lines[idx];
@@ -122,16 +111,7 @@ export function PurchasesSection({
   }
 
   function openNewProductFromSearch(query: string) {
-    setProductForm({
-      name: query,
-      type: "bulk",
-      unit: "kg",
-      displayUnit: "kg",
-      pkgSize: "",
-      pkgUnit: "un",
-      category: categories[0] || "Mercearia",
-      alertDays: "15",
-    });
+    setProductForm({ name: query, type: "bulk", unit: "kg", displayUnit: "kg", pkgSize: "", pkgUnit: "un", category: categories[0] || "Mercearia", alertDays: "15" });
     setProductModal(true);
   }
 
@@ -143,10 +123,7 @@ export function PurchasesSection({
     const scaleOptions = getScaleOptions(productForm.unit);
     const validDisplayUnit = scaleOptions.some(o => o.unit === productForm.displayUnit) ? productForm.displayUnit : productForm.unit;
     const newItem: Item = {
-      id: uid(),
-      name: productForm.name.trim(),
-      type: productForm.type as Item["type"],
-      category,
+      id: uid(), name: productForm.name.trim(), type: productForm.type as Item["type"], category,
       unit: productForm.type === "bulk" ? productForm.unit : undefined,
       displayUnit: productForm.type === "bulk" ? validDisplayUnit : undefined,
       pkgSize: productForm.type === "packaged" ? parseFloat(productForm.pkgSize) : undefined,
@@ -160,7 +137,6 @@ export function PurchasesSection({
 
   function removeLine(idx: number) { setForm({ ...form, lines: form.lines.filter((_, i) => i !== idx) }); }
 
-  // ── Warehouse helpers ─────────────────────────────────────────────────────
   function applyPurchaseToWarehouse(lines: PurchaseLine[], base: WarehouseItem[]): WarehouseItem[] {
     const wh = [...base];
     lines.forEach(line => {
@@ -182,7 +158,6 @@ export function PurchasesSection({
     return wh;
   }
 
-  // ── Save / edit purchase ──────────────────────────────────────────────────
   function savePurchase() {
     if (!form.date || !form.marketId || form.lines.length === 0) return;
     const total = form.lines.reduce((s, l) => s + l.total, 0);
@@ -196,6 +171,7 @@ export function PurchasesSection({
       setWarehouse(applyPurchaseToWarehouse(form.lines, warehouse));
       setPurchases([...purchases, p]);
       if (onCreatedFromList) onCreatedFromList();
+      else onPurchaseSaved?.();
     }
     setView("list");
   }
@@ -215,15 +191,12 @@ export function PurchasesSection({
     setView("list");
   }
 
-  // ── Export selected ───────────────────────────────────────────────────────
   function exportSelected() {
     const toExport = purchases.filter(p => selectedIds.has(p.id));
     const itemIds = new Set(toExport.flatMap(p => p.lines.map(l => l.itemId)));
     const marketIds = new Set(toExport.map(p => p.marketId));
     const data = {
-      _version: 3,
-      _exportedAt: new Date().toISOString(),
-      _type: "purchases_export",
+      _version: 3, _exportedAt: new Date().toISOString(), _type: "purchases_export",
       purchases: toExport,
       items: items.filter(i => itemIds.has(i.id)),
       markets: markets.filter(m => marketIds.has(m.id)),
@@ -250,7 +223,6 @@ export function PurchasesSection({
     else setSelectedIds(new Set(sorted.map(p => p.id)));
   }
 
-  // ── Line display helper ───────────────────────────────────────────────────
   function lineDisplay(l: PurchaseLine) {
     const it = getItem(l.itemId);
     if (!it) return null;
@@ -279,14 +251,14 @@ export function PurchasesSection({
     };
   }
 
-  const lineItem   = lf.itemId ? getItem(lf.itemId) : null;
-  const isBulk     = lineItem?.type === "bulk";
-  const du         = lineItem ? getDisplayUnit(lineItem) : "";
+  const lineItem    = lf.itemId ? getItem(lf.itemId) : null;
+  const isBulk      = lineItem?.type === "bulk";
+  const du          = lineItem ? getDisplayUnit(lineItem) : "";
   const discountVal = parseFloat(lf.discount) || 0;
   const canPreview  = lf.numPkgs && lf.pricePerPkg && +lf.numPkgs > 0 && +lf.pricePerPkg > 0 && (!isBulk || (lf.pkgQty && +lf.pkgQty > 0));
   const sorted      = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
-  const marketLastPurchase = purchases.reduce<Record<string, string>>((acc, purchase) => {
-    if (!acc[purchase.marketId] || purchase.date > acc[purchase.marketId]) acc[purchase.marketId] = purchase.date;
+  const marketLastPurchase = purchases.reduce<Record<string, string>>((acc, p) => {
+    if (!acc[p.marketId] || p.date > acc[p.marketId]) acc[p.marketId] = p.date;
     return acc;
   }, {});
   const marketsByRecent = [...markets].sort((a, b) => {
@@ -307,7 +279,6 @@ export function PurchasesSection({
           <div className="flex-1">
             <h2 className={`text-base font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{mkt?.name || "Mercado"}</h2>
             <p className="text-xs text-slate-500">{new Date(p.date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
-            {mkt?.description && <p className="text-xs text-slate-600 mt-0.5">{mkt.description}</p>}
           </div>
           <button onClick={() => startEdit(p)} className={`p-2 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"}`}><Icon name="edit" size={16} /></button>
           <button onClick={() => setDeleteTarget(p.id)} className={`p-2 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={16} /></button>
@@ -327,7 +298,6 @@ export function PurchasesSection({
                   <div className="flex-1 min-w-0">
                     <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
                     {l.brand && <p className="text-xs text-slate-500 mt-0.5">Marca: {l.brand}</p>}
-                    {l.note && <p className="text-xs text-slate-600 mt-0.5 italic">{l.note}</p>}
                     <p className="text-xs text-slate-500 mt-1">{d?.main}</p>
                     {d?.discount && <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1"><Icon name="tag" size={10} />{d.discount}</p>}
                     {d?.sub && <p className="text-xs text-teal-500 mt-0.5">{d.sub}</p>}
@@ -355,13 +325,12 @@ export function PurchasesSection({
     const total = form.lines.reduce((s, l) => s + l.total, 0);
     const productScaleOptions = getScaleOptions(productForm.unit);
     const productHasScales = productScaleOptions.length > 1;
+
     return (
-      <div className="space-y-4 pb-24">
+      <div className="space-y-4 pb-40">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setView("list"); setEditingPurchase(null); }}
-            className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}
-          >
+          <button onClick={() => { setView("list"); setEditingPurchase(null); }}
+            className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}>
             <Icon name="back" size={20} />
           </button>
           <div className="flex-1">
@@ -390,12 +359,10 @@ export function PurchasesSection({
           </div>
 
           {form.lines.length === 0 ? (
-            <div
-              className={`border-2 border-dashed rounded-2xl py-10 text-center cursor-pointer transition-colors ${isDark ? "border-slate-800 hover:border-teal-500/40" : "border-slate-200 hover:border-teal-400/50"}`}
-              onClick={() => openLine()}
-            >
+            <div onClick={() => openLine()}
+              className={`border-2 border-dashed rounded-2xl py-10 text-center cursor-pointer transition-colors ${isDark ? "border-slate-800 hover:border-teal-500/40" : "border-slate-200 hover:border-teal-400/50"}`}>
               <p className={`text-sm font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>Toque para adicionar o primeiro item</p>
-              <p className={`text-xs mt-1 ${isDark ? "text-slate-700" : "text-slate-300"}`}>Se o produto não existir, você pode cadastrá-lo na hora</p>
+              <p className={`text-xs mt-1 ${isDark ? "text-slate-700" : "text-slate-300"}`}>Cadastre produtos na hora se necessário</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -420,57 +387,41 @@ export function PurchasesSection({
                   </Card>
                 );
               })}
-
-              {/* Running total */}
               <div className={`flex justify-between items-center px-4 py-3 rounded-2xl ${isDark ? "bg-slate-900 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
-                <span className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {form.lines.length} {form.lines.length === 1 ? "item" : "itens"}
-                </span>
+                <span className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>{form.lines.length} {form.lines.length === 1 ? "item" : "itens"}</span>
                 <span className="text-teal-400 font-black text-lg">{fmt(total)}</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Save button — sticky at bottom, separated from FAB */}
+        {/* Barra de salvar — sticky no bottom, acima do FAB */}
         <div className={`sticky bottom-0 z-10 -mx-4 px-4 py-3 ${isDark ? "bg-slate-950/95" : "bg-slate-50/95"} backdrop-blur-xl border-t ${isDark ? "border-white/5" : "border-black/6"}`}>
           <div className="flex gap-3">
-            <Btn
-              onClick={() => { setView("list"); setEditingPurchase(null); }}
-              variant="secondary"
-              className="flex-1"
-            >
-              Cancelar
-            </Btn>
-            <Btn
-              onClick={savePurchase}
-              disabled={form.lines.length === 0 || !form.date || !form.marketId}
-              className="flex-1"
-            >
+            <Btn onClick={() => { setView("list"); setEditingPurchase(null); }} variant="secondary" className="flex-1">Cancelar</Btn>
+            <Btn onClick={savePurchase} disabled={form.lines.length === 0 || !form.date || !form.marketId} className="flex-1">
               {editingPurchase ? "Atualizar" : "Salvar compra"}
             </Btn>
           </div>
         </div>
 
-        {/* FAB — floating add item, fixed bottom-right, well above save bar */}
+        {/* FAB — posicionado acima da barra sticky (bottom-20 = 80px, barra tem ~64px + nav ~56px) */}
         <button
           onClick={() => openLine()}
-          className={`fixed bottom-32 right-5 z-30 w-14 h-14 rounded-2xl bg-teal-500 text-white shadow-2xl shadow-teal-500/40 flex items-center justify-center active:scale-90 transition-all press-scale border-4 fab-pulse ${isDark ? "border-slate-950" : "border-white"}`}
+          className={`fixed bottom-24 right-5 z-30 w-14 h-14 rounded-2xl bg-teal-500 text-white shadow-2xl shadow-teal-500/40 flex items-center justify-center active:scale-90 transition-all press-scale border-4 fab-pulse ${isDark ? "border-slate-950" : "border-white"}`}
           aria-label="Adicionar item"
         >
           <Icon name="plus" size={24} />
         </button>
 
+        {/* Modal de linha */}
         {lineModal && (
           <Modal title={editIdx !== null ? "Editar Item" : "Adicionar Item"} onClose={() => setLineModal(false)}>
             <div className="space-y-3">
               <ProductSearch
-                label="Produto"
-                value={lf.itemId}
+                label="Produto" value={lf.itemId}
                 onChange={v => setLf({ ...lf, itemId: v, numPkgs: "", pkgQty: "", pricePerPkg: "", discount: "0" })}
-                items={items}
-                onCreateMissing={openNewProductFromSearch}
-                required
+                items={items} onCreateMissing={openNewProductFromSearch} required
               />
               {lineItem && (
                 <>
@@ -478,10 +429,14 @@ export function PurchasesSection({
                     <span className="flex-shrink-0 mt-0.5"><Icon name={isBulk ? "scale" : "box"} size={13} /></span>
                     <span>{isBulk ? `Granel — informe embalagens, ${du} por emb. e preço/emb.` : `Emb. fixa de ${fmtN(lineItem.pkgSize || 0, 0)} ${lineItem.pkgUnit} — informe qtd. e preço`}</span>
                   </div>
-                  <Inp inputRef={numPkgsRef} label="Nº de embalagens" type="number" value={lf.numPkgs} onChange={v => setLf({ ...lf, numPkgs: v })} placeholder="Ex: 2" min="0.001" step="1" required onEnter={() => { if (isBulk && pkgQtyRef.current) pkgQtyRef.current.focus(); else if (priceRef.current) priceRef.current.focus(); }} />
-                  {isBulk && <Inp inputRef={pkgQtyRef} label={`Qtd. de ${du} por emb.`} type="number" value={lf.pkgQty} onChange={v => setLf({ ...lf, pkgQty: v })} placeholder="Ex: 500" min="0.001" step="0.001" required onEnter={() => { if (priceRef.current) priceRef.current.focus(); }} />}
-                  <Inp inputRef={priceRef} label="Preço por emb. (R$)" type="number" value={lf.pricePerPkg} onChange={v => setLf({ ...lf, pricePerPkg: v })} placeholder="0,00" min="0.01" step="0.01" required onEnter={() => { if (discountRef.current) discountRef.current.focus(); }} />
-                  <Inp inputRef={discountRef} label="Desconto total no item (R$)" type="number" value={lf.discount} onChange={v => setLf({ ...lf, discount: v })} placeholder="0,00 (opcional)" min="0" step="0.01" onEnter={() => { if (brandRef.current) brandRef.current.focus(); }} />
+                  <Inp inputRef={numPkgsRef} label="Nº de embalagens" type="number" value={lf.numPkgs} onChange={v => setLf({ ...lf, numPkgs: v })} placeholder="Ex: 2" min="0.001" step="1" required
+                    onEnter={() => { if (isBulk && pkgQtyRef.current) pkgQtyRef.current.focus(); else if (priceRef.current) priceRef.current.focus(); }} />
+                  {isBulk && <Inp inputRef={pkgQtyRef} label={`Qtd. de ${du} por emb.`} type="number" value={lf.pkgQty} onChange={v => setLf({ ...lf, pkgQty: v })} placeholder="Ex: 500" min="0.001" step="0.001" required
+                    onEnter={() => { if (priceRef.current) priceRef.current.focus(); }} />}
+                  <Inp inputRef={priceRef} label="Preço por emb. (R$)" type="number" value={lf.pricePerPkg} onChange={v => setLf({ ...lf, pricePerPkg: v })} placeholder="0,00" min="0.01" step="0.01" required
+                    onEnter={() => { if (discountRef.current) discountRef.current.focus(); }} />
+                  <Inp inputRef={discountRef} label="Desconto total no item (R$)" type="number" value={lf.discount} onChange={v => setLf({ ...lf, discount: v })} placeholder="0,00 (opcional)" min="0" step="0.01"
+                    onEnter={() => { if (brandRef.current) brandRef.current.focus(); }} />
                   {canPreview && (
                     <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl px-4 py-3 space-y-1.5`}>
                       <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2">Resumo</p>
@@ -503,7 +458,8 @@ export function PurchasesSection({
                       <div className={`flex justify-between text-xs ${isDark ? "border-t border-slate-800" : "border-t border-slate-200"} pt-1.5 mt-1`}><span className="text-slate-500">Total a pagar</span><span className="text-teal-400 font-black">{fmt(+lf.numPkgs * +lf.pricePerPkg - discountVal)}</span></div>
                     </div>
                   )}
-                  <Inp inputRef={brandRef} label="Marca (opcional)" value={lf.brand} onChange={v => setLf({ ...lf, brand: v })} placeholder="Ex: Camil, Yoki..." onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
+                  <Inp inputRef={brandRef} label="Marca (opcional)" value={lf.brand} onChange={v => setLf({ ...lf, brand: v })} placeholder="Ex: Camil, Yoki..."
+                    onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
                   <Inp inputRef={noteRef} label="Observações (opcional)" value={lf.note} onChange={v => setLf({ ...lf, note: v })} placeholder="Anotação livre..." onEnter={saveLine} />
                 </>
               )}
@@ -515,37 +471,19 @@ export function PurchasesSection({
           </Modal>
         )}
 
+        {/* Modal de novo produto inline */}
         {productModal && (
           <Modal title="Cadastrar Produto" onClose={() => setProductModal(false)}>
             <div className="space-y-4">
-              <Inp
-                inputRef={productNameRef}
-                label="Nome do produto"
-                value={productForm.name}
-                onChange={v => setProductForm({ ...productForm, name: v })}
-                placeholder="Ex: Feijão Carioca, Banana Nanica..."
-                required
-                onEnter={() => { if (productForm.type === "packaged" && productPkgSizeRef.current) productPkgSizeRef.current.focus(); else saveInlineProduct(); }}
-              />
-              <Sel
-                label="Categoria"
-                value={productForm.category}
-                onChange={v => setProductForm({ ...productForm, category: v })}
-                options={categories.map(c => ({ value: c, label: c }))}
-                placeholder="Selecionar..."
-              />
+              <Inp inputRef={productNameRef} label="Nome do produto" value={productForm.name} onChange={v => setProductForm({ ...productForm, name: v })} placeholder="Ex: Feijão Carioca..." required
+                onEnter={() => { if (productForm.type === "packaged" && productPkgSizeRef.current) productPkgSizeRef.current.focus(); else saveInlineProduct(); }} />
+              <Sel label="Categoria" value={productForm.category} onChange={v => setProductForm({ ...productForm, category: v })} options={categories.map(c => ({ value: c, label: c }))} placeholder="Selecionar..." />
               <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tipo de produto <span className="text-red-400">*</span></p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tipo <span className="text-red-400">*</span></p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { val: "bulk", icon: "scale", label: "Granel", sub: "Peso, litro, metro" },
-                    { val: "packaged", icon: "box", label: "Emb. fixa", sub: "Pacote fechado" },
-                  ].map(opt => (
-                    <button
-                      key={opt.val}
-                      onClick={() => setProductForm({ ...productForm, type: opt.val })}
-                      className={`flex flex-col gap-1.5 p-3 rounded-xl border-2 text-left transition-all ${productForm.type === opt.val ? "border-teal-500 bg-teal-500/10" : isDark ? "border-slate-700 bg-slate-900 hover:border-slate-600" : "border-slate-300 bg-white hover:border-slate-400"}`}
-                    >
+                  {[{ val: "bulk", icon: "scale", label: "Granel", sub: "Peso, litro, metro" }, { val: "packaged", icon: "box", label: "Emb. fixa", sub: "Pacote fechado" }].map(opt => (
+                    <button key={opt.val} onClick={() => setProductForm({ ...productForm, type: opt.val })}
+                      className={`flex flex-col gap-1.5 p-3 rounded-xl border-2 text-left transition-all ${productForm.type === opt.val ? "border-teal-500 bg-teal-500/10" : isDark ? "border-slate-700 bg-slate-900" : "border-slate-300 bg-white"}`}>
                       <div className={productForm.type === opt.val ? "text-teal-400" : "text-slate-600"}><Icon name={opt.icon} size={18} /></div>
                       <p className={`text-xs font-bold ${productForm.type === opt.val ? "text-teal-300" : isDark ? "text-slate-400" : "text-slate-600"}`}>{opt.label}</p>
                       <p className="text-[10px] text-slate-600 leading-tight">{opt.sub}</p>
@@ -557,19 +495,13 @@ export function PurchasesSection({
                 <>
                   <Sel label="Unidade de medida" value={productForm.unit} onChange={v => setProductForm({ ...productForm, unit: v, displayUnit: v })} options={BULK_UNITS.map(u => ({ value: u, label: u }))} required />
                   {productHasScales && (
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Escala de visualização</p>
-                      <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-                        {productScaleOptions.map(opt => (
-                          <button
-                            key={opt.unit}
-                            onClick={() => setProductForm({ ...productForm, displayUnit: opt.unit })}
-                            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${productForm.displayUnit === opt.unit ? "bg-teal-500 text-white shadow" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}
-                          >
-                            {opt.unit}
-                          </button>
-                        ))}
-                      </div>
+                    <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
+                      {productScaleOptions.map(opt => (
+                        <button key={opt.unit} onClick={() => setProductForm({ ...productForm, displayUnit: opt.unit })}
+                          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${productForm.displayUnit === opt.unit ? "bg-teal-500 text-white shadow" : isDark ? "text-slate-500" : "text-slate-500"}`}>
+                          {opt.unit}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </>
@@ -580,7 +512,6 @@ export function PurchasesSection({
                   <Sel label="Unidade interna" value={productForm.pkgUnit} onChange={v => setProductForm({ ...productForm, pkgUnit: v })} options={PKG_UNITS.map(u => ({ value: u, label: u }))} required />
                 </div>
               )}
-              <Inp label="Alerta de estoque (dias)" type="number" value={productForm.alertDays} onChange={v => setProductForm({ ...productForm, alertDays: v })} placeholder="15" min="0" step="1" />
               <div className="flex gap-3 pt-1">
                 <Btn onClick={() => setProductModal(false)} variant="secondary" className="flex-1">Cancelar</Btn>
                 <Btn onClick={saveInlineProduct} disabled={!productForm.name.trim() || (productForm.type === "packaged" && !productForm.pkgSize)} className="flex-1">Salvar e selecionar</Btn>
@@ -598,24 +529,15 @@ export function PurchasesSection({
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-2">
           {sorted.length > 0 && (
-            <Btn
-              onClick={() => { setSelecting(!selecting); setSelectedIds(new Set()); }}
-              variant={selecting ? "success" : "outline"}
-              size="sm"
-            >
+            <Btn onClick={() => { setSelecting(!selecting); setSelectedIds(new Set()); }} variant={selecting ? "success" : "outline"} size="sm">
               <Icon name="download" size={13} />{selecting ? "Cancelar" : "Exportar"}
             </Btn>
           )}
           {selecting && selectedIds.size > 0 && (
-            <Btn onClick={exportSelected} size="sm">
-              <Icon name="download" size={13} />Baixar ({selectedIds.size})
-            </Btn>
+            <Btn onClick={exportSelected} size="sm"><Icon name="download" size={13} />Baixar ({selectedIds.size})</Btn>
           )}
         </div>
-        <Btn
-          onClick={() => { setForm({ marketId: markets[0]?.id || "", date: new Date().toISOString().slice(0, 10), note: "", lines: [] }); setEditingPurchase(null); setView("new"); }}
-          disabled={markets.length === 0}
-        >
+        <Btn onClick={() => { setForm({ marketId: markets[0]?.id || "", date: new Date().toISOString().slice(0, 10), note: "", lines: [] }); setEditingPurchase(null); setView("new"); }} disabled={markets.length === 0}>
           <Icon name="plus" size={15} />Nova Compra
         </Btn>
       </div>
@@ -629,9 +551,7 @@ export function PurchasesSection({
         </div>
       )}
 
-      {(items.length === 0 || markets.length === 0) && (
-        <InfoBox>{items.length === 0 ? "VocÃª pode cadastrar produtos durante a compra ao buscar um item novo." : "Cadastre ao menos um mercado primeiro."}</InfoBox>
-      )}
+      {markets.length === 0 && <InfoBox>Cadastre ao menos um mercado antes de registrar uma compra.</InfoBox>}
 
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center text-center py-12 gap-4 px-4">
@@ -642,11 +562,9 @@ export function PurchasesSection({
             <p className={`font-black text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>Nenhuma compra registrada</p>
             <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Registre suas compras para acompanhar consumo e preços ao longo do tempo.</p>
           </div>
-          <button
-            onClick={() => { setForm({ marketId: markets[0]?.id || "", date: new Date().toISOString().slice(0, 10), note: "", lines: [] }); setEditingPurchase(null); setView("new"); }}
+          <button onClick={() => { setForm({ marketId: markets[0]?.id || "", date: new Date().toISOString().slice(0, 10), note: "", lines: [] }); setEditingPurchase(null); setView("new"); }}
             disabled={markets.length === 0}
-            className="px-5 py-2.5 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25 active:scale-95 transition-transform disabled:opacity-40"
-          >
+            className="px-5 py-2.5 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25 active:scale-95 transition-transform disabled:opacity-40">
             Registrar primeira compra
           </button>
         </div>
@@ -655,10 +573,8 @@ export function PurchasesSection({
           {sorted.map(p => (
             <div key={p.id} className="flex items-center gap-2">
               {selecting && (
-                <button
-                  onClick={() => toggleSelect(p.id)}
-                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${selectedIds.has(p.id) ? "bg-teal-500 border-teal-500" : isDark ? "border-slate-600" : "border-slate-300"}`}
-                >
+                <button onClick={() => toggleSelect(p.id)}
+                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${selectedIds.has(p.id) ? "bg-teal-500 border-teal-500" : isDark ? "border-slate-600" : "border-slate-300"}`}>
                   {selectedIds.has(p.id) && <Icon name="check" size={10} />}
                 </button>
               )}

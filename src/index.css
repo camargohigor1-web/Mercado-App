@@ -11,14 +11,12 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Hide scrollbars on mobile while keeping scroll */
 .overflow-y-auto {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 .overflow-y-auto::-webkit-scrollbar { display: none; }
 
-/* Prevent iOS body bounce */
 body { overscroll-behavior: none; }
 
 /* ── Animations ──────────────────────────────────────────────────────────────── */
@@ -48,39 +46,38 @@ body { overscroll-behavior: none; }
   100% { opacity:1; transform:scale(1); }
 }
 
-.animate-fade-slide-up  { animation:fadeSlideUp  240ms cubic-bezier(0.22,1,0.36,1) both; }
-.animate-fade-in        { animation:fadeIn        200ms ease-out both; }
-.animate-scale-in       { animation:scaleIn       220ms cubic-bezier(0.22,1,0.36,1) both; }
-.animate-slide-in-right { animation:slideInRight  240ms cubic-bezier(0.22,1,0.36,1) both; }
-.animate-slide-up       { animation:slideUp       300ms cubic-bezier(0.22,1,0.36,1) both; }
-.animate-pop-in         { animation:popIn         350ms cubic-bezier(0.22,1,0.36,1) both; }
+.animate-fade-slide-up  { animation: fadeSlideUp  240ms cubic-bezier(0.22,1,0.36,1) both; }
+.animate-fade-in        { animation: fadeIn        200ms ease-out both; }
+.animate-scale-in       { animation: scaleIn       220ms cubic-bezier(0.22,1,0.36,1) both; }
+.animate-slide-in-right { animation: slideInRight  240ms cubic-bezier(0.22,1,0.36,1) both; }
+.animate-slide-up       { animation: slideUp       300ms cubic-bezier(0.22,1,0.36,1) both; }
+.animate-pop-in         { animation: popIn         350ms cubic-bezier(0.22,1,0.36,1) both; }
 
-/* Stagger delays */
 .stagger-1 { animation-delay:40ms; }
 .stagger-2 { animation-delay:80ms; }
 .stagger-3 { animation-delay:120ms; }
 .stagger-4 { animation-delay:160ms; }
 .stagger-5 { animation-delay:200ms; }
 
-/* ── FAB ring pulse ──────────────────────────────────────────────────────────── */
+/* ── FAB pulse ───────────────────────────────────────────────────────────────── */
 @keyframes fabPulse {
   0%,100% { box-shadow:0 0 0 0 rgba(20,184,166,0.35); }
   50%      { box-shadow:0 0 0 9px rgba(20,184,166,0); }
 }
-.fab-pulse { animation:fabPulse 2.8s ease-in-out infinite; }
+.fab-pulse { animation: fabPulse 2.8s ease-in-out infinite; }
 
-/* ── Highlight flash (history) ───────────────────────────────────────────────── */
+/* ── Highlight flash ─────────────────────────────────────────────────────────── */
 .highlighted-item {
-  background-color:rgba(255,220,100,0.12) !important;
-  border-color:rgba(250,200,60,0.45) !important;
+  background-color: rgba(255,220,100,0.12) !important;
+  border-color: rgba(250,200,60,0.45) !important;
 }
 .highlighted-item, .highlight-fadeable {
-  transition:background-color 0.6s ease, border-color 0.6s ease;
+  transition: background-color 0.6s ease, border-color 0.6s ease;
 }
 
-/* ── Bottom nav safe area ───────────────────────────────────────────────────── */
-.nav-safe { padding-bottom:env(safe-area-inset-bottom, 0px); }
+/* ── Safe areas ──────────────────────────────────────────────────────────────── */
+.nav-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* ── Active press feedback ──────────────────────────────────────────────────── */
-.press-scale { transition:transform 120ms ease; }
-.press-scale:active { transform:scale(0.96); }
+/* ── Press feedback ──────────────────────────────────────────────────────────── */
+.press-scale { transition: transform 120ms ease; }
+.press-scale:active { transform: scale(0.96); }

@@ -8,9 +8,9 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
   const [phase, setPhase] = useState<"in" | "hold" | "out">("in");
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("hold"), 400);
-    const t2 = setTimeout(() => setPhase("out"), 1600);
-    const t3 = setTimeout(() => onDone(), 2050);
+    const t1 = setTimeout(() => setPhase("hold"), 150);
+    const t2 = setTimeout(() => setPhase("out"), 600);
+    const t3 = setTimeout(() => onDone(), 900);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
@@ -23,30 +23,29 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
       style={{
         background: "linear-gradient(160deg,#0f766e 0%,#0d9488 45%,#0891b2 100%)",
         opacity: isOut ? 0 : 1,
-        transition: isOut ? "opacity 450ms cubic-bezier(0.4,0,1,1)" : "none",
+        transition: isOut ? "opacity 300ms cubic-bezier(0.4,0,1,1)" : "none",
         pointerEvents: isOut ? "none" : "all",
       }}
     >
       {/* Decorative rings */}
       <div className="absolute rounded-full border border-white/5"
-        style={{ width:480,height:480, opacity:isIn?0:1, transform:isIn?"scale(0.75)":"scale(1)", transition:"all 900ms cubic-bezier(0.22,1,0.36,1) 100ms" }} />
+        style={{ width:480, height:480, opacity:isIn?0:1, transform:isIn?"scale(0.75)":"scale(1)", transition:"all 600ms cubic-bezier(0.22,1,0.36,1) 50ms" }} />
       <div className="absolute rounded-full border border-white/8"
-        style={{ width:340,height:340, opacity:isIn?0:1, transform:isIn?"scale(0.75)":"scale(1)", transition:"all 900ms cubic-bezier(0.22,1,0.36,1) 200ms" }} />
+        style={{ width:340, height:340, opacity:isIn?0:1, transform:isIn?"scale(0.75)":"scale(1)", transition:"all 600ms cubic-bezier(0.22,1,0.36,1) 100ms" }} />
 
-      {/* Content */}
       <div className="flex flex-col items-center gap-6 relative z-10"
         style={{
-          opacity: isIn?0:1,
-          transform: isIn?"scale(0.85) translateY(16px)":"scale(1) translateY(0)",
-          transition:"all 550ms cubic-bezier(0.22,1,0.36,1)",
+          opacity: isIn ? 0 : 1,
+          transform: isIn ? "scale(0.85) translateY(16px)" : "scale(1) translateY(0)",
+          transition: "all 400ms cubic-bezier(0.22,1,0.36,1)",
         }}
       >
         <div className="w-24 h-24 rounded-[26px] flex items-center justify-center"
           style={{
-            background:"rgba(255,255,255,0.15)",
-            backdropFilter:"blur(12px)",
-            border:"1px solid rgba(255,255,255,0.25)",
-            boxShadow:"0 24px 48px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.3)",
+            background: "rgba(255,255,255,0.15)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            boxShadow: "0 24px 48px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.3)",
           }}
         >
           <svg viewBox="0 0 64 64" width="52" height="52">
@@ -59,23 +58,13 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
         </div>
         <div className="text-center space-y-1.5">
           <p className="text-white font-black text-[26px] tracking-tight leading-none"
-            style={{ textShadow:"0 2px 12px rgba(0,0,0,0.15)" }}>
+            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.15)" }}>
             MercadoApp
           </p>
           <p className="text-white/60 text-sm font-medium tracking-wide">
             Suas compras sob controle
           </p>
         </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10"
-        style={{ opacity:isIn?0:1, transition:"opacity 300ms ease 500ms" }}>
-        <div className="h-full bg-white/40 rounded-full"
-          style={{
-            width: isOut?"100%": isIn?"0%":"70%",
-            transition: isIn?"none": isOut?"width 450ms cubic-bezier(0.4,0,1,1)":"width 1200ms cubic-bezier(0.4,0,0.2,1)",
-          }} />
       </div>
     </div>
   );

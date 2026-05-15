@@ -1,23 +1,17 @@
 import { useState, useRef } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Badge, Empty, ConfirmModal } from "./ui";
 import { uid, fmtN, getScaleOptions, BULK_UNITS, PKG_UNITS, DEFAULT_CATEGORIES } from "../utils";
 import type { Item } from "../types";
 
-interface ItemsSectionProps {
-  items: Item[];
-  setItems: (items: Item[]) => void;
-  categories: string[];
-  setCategories: (cats: string[]) => void;
-  initialSearch?: string;
-}
-
-export function ItemsSection({ items, setItems, categories, setCategories, initialSearch }: ItemsSectionProps) {
+export function ItemsSection() {
   const { isDark } = useTheme();
+  const { items, setItems, categories, setCategories } = useAppContext();
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const [search, setSearch] = useState(initialSearch?.trim() ?? "");
+  const [search, setSearch] = useState("");
   const [catModal, setCatModal] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [editCat, setEditCat] = useState<string | null>(null);
@@ -72,14 +66,6 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
     setModal(false);
   }
 
-  function confirmDelete(id: string) { setDeleteTarget(id); }
-  function doDelete() {
-    if (deleteTarget) {
-      setItems(items.filter(i => i.id !== deleteTarget));
-      setDeleteTarget(null);
-    }
-  }
-
   function addCategory() {
     const name = newCat.trim();
     if (!name || categories.includes(name)) return;
@@ -122,7 +108,6 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
         <Btn onClick={openNew}><Icon name="plus" size={15} />Novo</Btn>
       </div>
 
-      {/* Category filter — dropdown */}
       {categories.length > 0 && (
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
           className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
@@ -147,12 +132,9 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
                 Cadastre os produtos que você compra regularmente para ter histórico de preços e controle de estoque.
               </p>
             </div>
-            <button
-              onClick={() => { setEditing(null); setModal(true); }}
-              className="px-5 py-2.5 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25 active:scale-95 transition-transform flex items-center gap-2"
-            >
-              <Icon name="plus" size={14} />
-              Cadastrar primeiro produto
+            <button onClick={openNew}
+              className="px-5 py-2.5 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25 active:scale-95 transition-transform flex items-center gap-2">
+              <Icon name="plus" size={14} />Cadastrar primeiro produto
             </button>
           </div>
         )
@@ -189,7 +171,7 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
                   </div>
                   <div className="flex gap-0.5 flex-shrink-0">
                     <button onClick={() => openEdit(it)} className={`p-2 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"} transition-colors`}><Icon name="edit" size={14} /></button>
-                    <button onClick={() => confirmDelete(it.id)} className={`p-2 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors`}><Icon name="trash" size={14} /></button>
+                    <button onClick={() => setDeleteTarget(it.id)} className={`p-2 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors`}><Icon name="trash" size={14} /></button>
                   </div>
                 </Card>
               ))}
@@ -198,14 +180,12 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
         ))
       )}
 
-      {/* Product Modal */}
       {modal && (
         <Modal title={editing ? "Editar Produto" : "Novo Produto"} onClose={() => setModal(false)}>
           <div className="space-y-4">
             <Inp inputRef={nameRef} label="Nome do produto" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="Ex: Feijão Carioca, Banana Nanica..." required
               onEnter={() => { if (form.type === "packaged" && pkgSizeRef.current) pkgSizeRef.current.focus(); else if (form.name.trim()) saveItem(); }} />
-            <Sel label="Categoria" value={form.category} onChange={v => setForm({ ...form, category: v })}
-              options={categories.map(c => ({ value: c, label: c }))} placeholder="Selecionar..." />
+            <Sel label="Categoria" value={form.category} onChange={v => setForm({ ...form, category: v })} options={categories.map(c => ({ value: c, label: c }))} placeholder="Selecionar..." />
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tipo de produto <span className="text-red-400">*</span></p>
               <div className="grid grid-cols-2 gap-2">
@@ -247,8 +227,7 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
               </div>
             )}
             <Inp label="Alerta de estoque (dias)" type="number" value={form.alertDays} onChange={v => setForm({ ...form, alertDays: v })} placeholder="15" min="0" step="1" />
-            <p className={`text-[10px] mt-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>0 = sem alerta para este produto</p>
-            <p className="text-[10px] text-slate-600">Padrão: 15 dias. Alerta quando estoque calculado for menor que este valor.</p>
+            <p className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>0 = sem alerta · Padrão: 15 dias</p>
             <div className="flex gap-3 pt-1">
               <Btn onClick={() => setModal(false)} variant="secondary" className="flex-1">Cancelar</Btn>
               <Btn onClick={saveItem} disabled={!form.name.trim() || (form.type === "packaged" && !form.pkgSize)} className="flex-1">Salvar</Btn>
@@ -257,7 +236,6 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
         </Modal>
       )}
 
-      {/* Categories Modal */}
       {catModal && (
         <Modal title="Gerenciar Categorias" onClose={() => setCatModal(false)}>
           <div className="space-y-4">
@@ -270,15 +248,15 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
                         className={`flex-1 text-sm bg-transparent outline-none ${isDark ? "text-slate-100" : "text-slate-900"}`}
                         onKeyDown={e => { if (e.key === "Enter") saveEditCat(); if (e.key === "Escape") { setEditCat(null); setEditCatName(""); } }}
                         autoFocus />
-                      <button onClick={saveEditCat} className="text-teal-400 hover:text-teal-300 transition-colors p-1"><Icon name="check" size={14} /></button>
-                      <button onClick={() => { setEditCat(null); setEditCatName(""); }} className="text-slate-500 hover:text-slate-300 transition-colors p-1"><Icon name="x" size={14} /></button>
+                      <button onClick={saveEditCat} className="text-teal-400 hover:text-teal-300 p-1"><Icon name="check" size={14} /></button>
+                      <button onClick={() => { setEditCat(null); setEditCatName(""); }} className="text-slate-500 hover:text-slate-300 p-1"><Icon name="x" size={14} /></button>
                     </>
                   ) : (
                     <>
                       <p className={`flex-1 text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>{cat}</p>
-                      <button onClick={() => { setEditCat(cat); setEditCatName(cat); }} className={`p-1 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"} transition-colors`}><Icon name="edit" size={13} /></button>
+                      <button onClick={() => { setEditCat(cat); setEditCatName(cat); }} className={`p-1 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"}`}><Icon name="edit" size={13} /></button>
                       {!DEFAULT_CATEGORIES.includes(cat) && (
-                        <button onClick={() => deleteCategory(cat)} className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"} transition-colors`}><Icon name="trash" size={13} /></button>
+                        <button onClick={() => deleteCategory(cat)} className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={13} /></button>
                       )}
                     </>
                   )}
@@ -299,7 +277,7 @@ export function ItemsSection({ items, setItems, categories, setCategories, initi
           title="Remover Produto"
           message="Remover este produto? O histórico de compras será mantido."
           confirmLabel="Remover"
-          onConfirm={doDelete}
+          onConfirm={() => { setItems(items.filter(i => i.id !== deleteTarget)); setDeleteTarget(null); }}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

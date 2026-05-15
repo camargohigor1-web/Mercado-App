@@ -1,19 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { ThemeCtx } from "./hooks/useTheme";
 import { Icon } from "./components/Icon";
 import { SplashScreen } from "./components/SplashScreen";
-import { HomeSection } from "./components/HomeSection";
-import { ItemsSection } from "./components/ItemsSection";
-import { MarketsSection } from "./components/MarketsSection";
-import { PurchasesSection } from "./components/PurchasesSection";
-import { HistorySection } from "./components/HistorySection";
-import { WarehouseSection } from "./components/WarehouseSection";
-import { ShoppingListSection } from "./components/ShoppingListSection";
-import { ReportsSection } from "./components/ReportsSection";
-import { BackupSection } from "./components/BackupSection";
 import { RightDrawer } from "./components/RightDrawer";
-import { KEYS, load, save, DEFAULT_CATEGORIES } from "./utils";
-import type { Item, Market, Purchase, ShoppingListEntry, WarehouseItem, PurchaseLine } from "./types";
+import { ToastContainer } from "./components/ToastContainer";
+import { AppProvider, useAppContext } from "./context/AppContext";
+import { useToast } from "./hooks/useToast";
+import type { PurchaseLine, Purchase } from "./types";
+
+// Lazy load de seções pesadas
+const HomeSection      = lazy(() => import("./components/HomeSection").then(m => ({ default: m.HomeSection })));
+const ShoppingListSection = lazy(() => import("./components/ShoppingListSection").then(m => ({ default: m.ShoppingListSection })));
+const HistorySection   = lazy(() => import("./components/HistorySection").then(m => ({ default: m.HistorySection })));
+const WarehouseSection = lazy(() => import("./components/WarehouseSection").then(m => ({ default: m.WarehouseSection })));
+const PurchasesSection = lazy(() => import("./components/PurchasesSection").then(m => ({ default: m.PurchasesSection })));
+const ItemsSection     = lazy(() => import("./components/ItemsSection").then(m => ({ default: m.ItemsSection })));
+const MarketsSection   = lazy(() => import("./components/MarketsSection").then(m => ({ default: m.MarketsSection })));
+const ReportsSection   = lazy(() => import("./components/ReportsSection").then(m => ({ default: m.ReportsSection })));
+const BackupSection    = lazy(() => import("./components/BackupSection").then(m => ({ default: m.BackupSection })));
 
 const EXTRA_TABS = ["purchases", "markets", "backup", "reports", "items"];
 
@@ -29,31 +33,21 @@ const TITLES: Record<string, string> = {
   reports:   "Relatório",
 };
 
+function SectionLoading({ isDark }: { isDark: boolean }) {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className={`w-8 h-8 rounded-full border-2 border-t-transparent animate-spin ${isDark ? "border-teal-500" : "border-teal-600"}`} />
+    </div>
+  );
+}
 
-export default function App() {
+function AppInner() {
+  const { theme, setTheme, list, setList, purchases, setPurchases, warehouse, setWarehouse, items, setItems, markets, categories, setCategories, restoreAll } = useAppContext();
+  const { toasts, show: showToast, dismiss } = useToast();
+
   const [tab, setTab]           = useState("home");
   const [drawerOpen, setDrawer] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
-  const [theme, setThemeRaw]    = useState<string>(() => load(KEYS.theme, "dark"));
-
-  const [items,      setItemsRaw]      = useState<Item[]>            (() => load(KEYS.items,        []));
-  const [markets,    setMarketsRaw]    = useState<Market[]>          (() => load(KEYS.markets,      []));
-  const [purchases,  setPurchasesRaw]  = useState<Purchase[]>        (() => load(KEYS.purchases,    []));
-  const [list,       setListRaw]       = useState<ShoppingListEntry[]>(() => load(KEYS.shoppingList, []));
-  const [warehouse,  setWarehouseRaw]  = useState<WarehouseItem[]>   (() => load(KEYS.warehouse,    []));
-  const [categories, setCategoriesRaw] = useState<string[]>(() => {
-    const stored = load(KEYS.categories, null);
-    return stored ?? DEFAULT_CATEGORIES;
-  });
-
-  const setTheme     = useCallback((v: string)              => { setThemeRaw(v);    save(KEYS.theme,        v); }, []);
-  const setItems     = useCallback((v: Item[])              => { setItemsRaw(v);    save(KEYS.items,        v); }, []);
-  const setMarkets   = useCallback((v: Market[])            => { setMarketsRaw(v);  save(KEYS.markets,      v); }, []);
-  const setPurchases = useCallback((v: Purchase[])          => { setPurchasesRaw(v); save(KEYS.purchases,   v); }, []);
-  const setList      = useCallback((v: ShoppingListEntry[]) => { setListRaw(v);     save(KEYS.shoppingList, v); }, []);
-  const setWarehouse = useCallback((v: WarehouseItem[])     => { setWarehouseRaw(v); save(KEYS.warehouse,   v); }, []);
-  const setCategories = useCallback((v: string[])           => { setCategoriesRaw(v); save(KEYS.categories, v); }, []);
-
   const [pendingLines,  setPendingLines]  = useState<PurchaseLine[] | null>(null);
   const [pendingKey,    setPendingKey]    = useState(0);
   const [reportsMonth,  setReportsMonth]  = useState<string | undefined>(undefined);
@@ -63,6 +57,15 @@ export default function App() {
   const [warehouseSelectionCount, setWarehouseSelectionCount] = useState(0);
   const [pendingTab, setPendingTab] = useState<string | null>(null);
 
+  // Listener de erro de storage
+  useEffect(() => {
+    function onStorageError() {
+      showToast("Armazenamento quase cheio! Faça um backup e limpe dados antigos.", "warning", 6000);
+    }
+    window.addEventListener("storage-error", onStorageError);
+    return () => window.removeEventListener("storage-error", onStorageError);
+  }, [showToast]);
+
   function handleConvertToPurchase(lines: PurchaseLine[]) {
     setPendingLines(lines);
     setTab("purchases");
@@ -70,7 +73,12 @@ export default function App() {
 
   function handlePurchaseCreatedFromList() {
     setPendingLines(null);
-    setList(list.filter(l => l.saved));
+    setList(list.filter((l: any) => l.saved));
+    showToast("Compra registrada com sucesso!");
+  }
+
+  function handlePurchaseSaved() {
+    showToast("Compra registrada com sucesso!");
   }
 
   function handleRepeatPurchase(purchase: Purchase) {
@@ -116,13 +124,16 @@ export default function App() {
   }
 
   function handleRestore(data: {
-    items: Item[]; markets: Market[]; purchases: Purchase[];
-    shoppingList: ShoppingListEntry[]; warehouse: WarehouseItem[]; categories?: string[];
+    items: any[]; markets: any[]; purchases: any[];
+    shoppingList: any[]; warehouse: any[]; categories?: string[];
   }) {
-    setItems(data.items); setMarkets(data.markets); setPurchases(data.purchases);
-    setList(data.shoppingList); setWarehouse(data.warehouse || []);
-    if (data.categories) setCategories(data.categories);
-    setTab("shopping");
+    restoreAll({
+      items: data.items, markets: data.markets, purchases: data.purchases,
+      list: data.shoppingList, warehouse: data.warehouse || [],
+      categories: data.categories,
+    });
+    setTab("home");
+    showToast("Dados restaurados com sucesso!");
   }
 
   const isDark  = theme === "dark";
@@ -136,13 +147,17 @@ export default function App() {
   return (
     <ThemeCtx.Provider value={{ isDark }}>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
+
       <div className={`min-h-screen ${bg} ${text} flex flex-col max-w-lg mx-auto relative`}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header className={`sticky top-0 z-20 ${surface} backdrop-blur-xl border-b ${border} px-4 pt-safe`}
-          style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 20px)` }}>
+        <header
+          className={`sticky top-0 z-20 ${surface} backdrop-blur-xl border-b ${border} px-4`}
+          style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 20px)` }}
+        >
           <div className="flex items-center gap-3 pb-3">
-            {/* App icon */}
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden shadow-sm"
               style={{ background:"linear-gradient(135deg,#0f766e,#14b8a6)" }}>
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -150,7 +165,6 @@ export default function App() {
               </svg>
             </div>
 
-            {/* Title area */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 {isExtra && (
@@ -174,19 +188,16 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right — action zone */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              {/* Shopping list badge */}
-              {tab === "home" && list.filter(l => !l.saved).length > 0 && (
+              {tab === "home" && list.filter((l: any) => !l.saved).length > 0 && (
                 <button
                   onClick={() => navigateTo("shopping")}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all press-scale ${isDark ? "bg-teal-500/15 text-teal-400 border border-teal-500/25" : "bg-teal-50 text-teal-700 border border-teal-200"}`}
                 >
                   <Icon name="list" size={12} />
-                  {list.filter(l => !l.saved).length}
+                  {list.filter((l: any) => !l.saved).length}
                 </button>
               )}
-              {/* Drawer button */}
               <button
                 onClick={() => setDrawer(true)}
                 className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all press-scale ${isDark ? "text-slate-500 hover:text-slate-300 hover:bg-white/5" : "text-slate-400 hover:text-slate-600 hover:bg-black/5"} ${isExtra ? "text-teal-400" : ""}`}
@@ -200,72 +211,66 @@ export default function App() {
         {/* ── Content ─────────────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto px-4 py-4 pb-28">
           <div key={tab} className="animate-fade-slide-up">
-            {tab === "home" && (
-              <HomeSection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse} shoppingList={list}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onGoToHistory={() => setTab("history")}
-                onGoToWarehouse={() => setTab("warehouse")}
-                onGoToItems={() => setTab("items")}
-                onRepeatPurchase={handleRepeatPurchase}
-                onGoToReports={handleGoToReports}
-                onGoToHistoryPurchase={handleGoToHistoryPurchase}
-              />
-            )}
-            {tab === "shopping" && (
-              <ShoppingListSection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse} shoppingList={list}
-                setShoppingList={setList}
-                onConvertToPurchase={handleConvertToPurchase}
-                onGoToItems={() => setTab("items")}
-                onGoToHistoryPurchase={handleGoToHistoryPurchase}
-                onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
-              />
-            )}
-            {tab === "history" && (
-              <HistorySection
-                items={items} markets={markets} purchases={purchases}
-                warehouse={warehouse}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onRepeatPurchase={handleRepeatPurchase}
-                initialPurchaseId={openPurchaseId}
-                initialItemId={openItemId}
-                initialHighlightedProductId={highlightedProductId}
-                onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
-              />
-            )}
-            {tab === "warehouse" && (
-              <WarehouseSection
-                items={items} purchases={purchases} markets={markets} warehouse={warehouse}
-                setWarehouse={setWarehouse} categories={categories}
-                shoppingList={list} setShoppingList={setList}
-                onGoToNewPurchase={handleGoToNewPurchase}
-                onSelectionChange={setWarehouseSelectionCount}
-              />
-            )}
-            {tab === "purchases" && (
-              <PurchasesSection
-                key={pendingKey}
-                items={items} markets={markets} purchases={purchases}
-                setPurchases={setPurchases} setItems={setItems}
-                warehouse={warehouse} setWarehouse={setWarehouse}
-                categories={categories} setCategories={setCategories}
-                initialLines={pendingLines ?? undefined}
-                onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
-              />
-            )}
-            {tab === "items"     && <ItemsSection items={items} setItems={setItems} categories={categories} setCategories={setCategories} />}
-            {tab === "markets"   && <MarketsSection markets={markets} setMarkets={setMarkets} />}
-            {tab === "reports"   && <ReportsSection items={items} markets={markets} purchases={purchases} warehouse={warehouse} initialMonth={reportsMonth} onGoToHistoryItem={handleGoToHistoryItem} />}
-            {tab === "backup"    && (
-              <BackupSection
-                items={items} markets={markets} purchases={purchases}
-                shoppingList={list} warehouse={warehouse} categories={categories}
-                onRestore={handleRestore}
-              />
-            )}
+            <Suspense fallback={<SectionLoading isDark={isDark} />}>
+              {tab === "home" && (
+                <HomeSection
+                  onGoToNewPurchase={handleGoToNewPurchase}
+                  onGoToHistory={() => setTab("history")}
+                  onGoToWarehouse={() => setTab("warehouse")}
+                  onGoToItems={() => setTab("items")}
+                  onRepeatPurchase={handleRepeatPurchase}
+                  onGoToReports={handleGoToReports}
+                  onGoToHistoryPurchase={handleGoToHistoryPurchase}
+                />
+              )}
+              {tab === "shopping" && (
+                <ShoppingListSection
+                  onConvertToPurchase={handleConvertToPurchase}
+                  onGoToItems={() => setTab("items")}
+                  onGoToHistoryPurchase={handleGoToHistoryPurchase}
+                  onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
+                />
+              )}
+              {tab === "history" && (
+                <HistorySection
+                  onGoToNewPurchase={handleGoToNewPurchase}
+                  onRepeatPurchase={handleRepeatPurchase}
+                  initialPurchaseId={openPurchaseId}
+                  initialItemId={openItemId}
+                  initialHighlightedProductId={highlightedProductId}
+                  onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
+                />
+              )}
+              {tab === "warehouse" && (
+                <WarehouseSection
+                  onGoToNewPurchase={handleGoToNewPurchase}
+                  onSelectionChange={setWarehouseSelectionCount}
+                />
+              )}
+              {tab === "purchases" && (
+                <PurchasesSection
+                  key={pendingKey}
+                  initialLines={pendingLines ?? undefined}
+                  onCreatedFromList={pendingLines ? handlePurchaseCreatedFromList : undefined}
+                  onPurchaseSaved={handlePurchaseSaved}
+                />
+              )}
+              {tab === "items" && (
+                <ItemsSection />
+              )}
+              {tab === "markets" && (
+                <MarketsSection />
+              )}
+              {tab === "reports" && (
+                <ReportsSection
+                  initialMonth={reportsMonth}
+                  onGoToHistoryItem={handleGoToHistoryItem}
+                />
+              )}
+              {tab === "backup" && (
+                <BackupSection onRestore={handleRestore} />
+              )}
+            </Suspense>
           </div>
         </main>
 
@@ -273,8 +278,8 @@ export default function App() {
         <nav className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg ${surface} backdrop-blur-xl border-t ${border} z-20 nav-safe`}>
           <div className="flex items-end pt-1 pb-2">
 
-            <NavTab id="shopping"  label="Lista"   icon="list"      active={tab==="shopping"}  isDark={isDark} onClick={() => navigateTo("shopping")}  />
-            <NavTab id="history"   label="Histórico" icon="history"  active={tab==="history"}   isDark={isDark} onClick={() => navigateTo("history")}   />
+            <NavTab id="shopping"  label="Lista"     icon="list"      active={tab==="shopping"}  isDark={isDark} onClick={() => navigateTo("shopping")}  />
+            <NavTab id="history"   label="Histórico" icon="history"   active={tab==="history"}   isDark={isDark} onClick={() => navigateTo("history")}   />
 
             {/* Home FAB */}
             <div className="flex-1 flex flex-col items-center pb-0.5">
@@ -298,9 +303,8 @@ export default function App() {
               </span>
             </div>
 
-            <NavTab id="warehouse" label="Armazém" icon="warehouse" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
+            <NavTab id="warehouse" label="Armazém"   icon="warehouse" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
 
-            {/* More button */}
             <button
               onClick={() => setDrawer(true)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors relative ${isExtra ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-400 hover:text-slate-600"}`}
@@ -345,7 +349,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Right Drawer ─────────────────────────────────────────────────── */}
         <RightDrawer
           open={drawerOpen} onClose={() => setDrawer(false)}
           tab={tab} setTab={setTab} theme={theme} setTheme={setTheme}
@@ -370,5 +373,13 @@ function NavTab({ label, icon, active, isDark, onClick }: {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full bg-teal-400 animate-scale-in" />
       )}
     </button>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <AppInner />
+    </AppProvider>
   );
 }
