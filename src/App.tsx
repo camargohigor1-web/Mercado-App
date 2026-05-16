@@ -7,6 +7,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { AppProvider, useAppContext } from "./context/AppContext";
 import { useToast } from "./hooks/useToast";
 import type { PurchaseLine, Purchase } from "./types";
+import { SyncIndicator } from "./components/SyncIndicator"; // ◄ IMPORTADO AQUI
 
 // Lazy load de seções pesadas
 const HomeSection      = lazy(() => import("./components/HomeSection").then(m => ({ default: m.HomeSection })));
@@ -353,6 +354,8 @@ function AppInner() {
           open={drawerOpen} onClose={() => setDrawer(false)}
           tab={tab} setTab={setTab} theme={theme} setTheme={setTheme}
         />
+        
+        <SyncIndicator /> {/* ◄ INSERIDO AQUI ANTES DA CONCLUSÃO DA DIV PRINCIPAL */}
       </div>
     </ThemeCtx.Provider>
   );
