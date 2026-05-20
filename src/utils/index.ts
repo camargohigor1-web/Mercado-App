@@ -24,7 +24,6 @@ export function save(key: string, val: any): void {
   try {
     localStorage.setItem(key, JSON.stringify(val));
   } catch (e) {
-    // Storage cheio ou indisponível — dispara evento customizado para UI
     window.dispatchEvent(new CustomEvent("storage-error", { detail: { key, error: e } }));
   }
 }
@@ -58,7 +57,6 @@ export function validateBackup(raw: unknown): BackupValidationResult {
 
   if (errors.length) return { valid: false, errors };
 
-  // Validação de amostras
   const items = data.items as any[];
   const markets = data.markets as any[];
   const purchases = data.purchases as any[];
@@ -156,6 +154,228 @@ export function getWarehouseUnit(item: Item): string {
   return item.displayUnit || item.unit || "";
 }
 
+// ─── Consumo por linha do tempo de eventos ────────────────────────────────────
+//
+// Monta uma sequência ordenada de eventos (compras e atualizações reais) e
+// calcula o consumo real em cada intervalo entre eventos consecutivos.
+//
+// Regras:
+//   - Compras somam ao estoque vigente (não resetam)
+//   - Atualizações reais definem o estoque exato naquele momento
+//   - No mesmo dia: compras vêm antes das atualizações
+//   - Segmentos com consumo negativo (recontagem maior que esperado) são descartados
+//   - Segmentos com menos de MIN_DAYS dias são descartados (muito curtos para ser confiáveis)
+//   - A média final é ponderada pelos dias de cada segmento
+//
+// Retorna consumo médio mensal em unidade base (sem fator de escala aplicado).
+// Retorna null se não houver segmentos válidos suficientes (usa fallback).
+
+const MIN_SEGMENT_DAYS = 3;
+
+interface TimelineEvent {
+  date: string;       // "YYYY-MM-DD"
+  order: number;      // 0 = compra, 1 = atualização (desempate no mesmo dia)
+  type: "purchase" | "update";
+  qty: number;        // para compra: quantidade comprada (base); para update: estoque real (base)
+}
+
+function daysBetween(dateA: string, dateB: string): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.round(
+    (new Date(dateB + "T12:00:00").getTime() - new Date(dateA + "T12:00:00").getTime()) / msPerDay
+  );
+}
+
+export function calcAvgMonthlyFromTimeline(
+  itemId: string,
+  item: Item,
+  purchases: Purchase[],
+  warehouseEntries: WarehouseEntry[]
+): number | null {
+  // Monta eventos de compra para este produto (quantidade em unidade base)
+  const events: TimelineEvent[] = [];
+
+  purchases.forEach((p) => {
+    p.lines.forEach((l) => {
+      if (l.itemId !== itemId) return;
+      // quantidade em unidade base (sem display factor)
+      const qty = item.type === "bulk" ? (l.totalQty ?? 0) : l.numPkgs;
+      if (qty > 0) {
+        events.push({ date: p.date, order: 0, type: "purchase", qty });
+      }
+    });
+  });
+
+  // Monta eventos de atualização real (quantidade em unidade base)
+  warehouseEntries.forEach((e) => {
+    // realQty já está em unidade base no WarehouseEntry
+    events.push({ date: e.date, order: 1, type: "update", qty: e.realQty });
+  });
+
+  if (events.filter(e => e.type === "update").length === 0) {
+    // Sem nenhuma atualização real — não há dados para este método
+    return null;
+  }
+
+  // Ordena por data e depois por order (compras antes de atualizações no mesmo dia)
+  events.sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date);
+    return dateCmp !== 0 ? dateCmp : a.order - b.order;
+  });
+
+  // Percorre a linha do tempo reconstituindo o estoque e coletando segmentos de consumo
+  let currentStock = 0;
+  let lastUpdateDate: string | null = null;
+  let lastUpdateStock: number | null = null;
+
+  const segments: { consumed: number; days: number }[] = [];
+
+  for (const event of events) {
+    if (event.type === "purchase") {
+      currentStock += event.qty;
+    } else {
+      // É uma atualização real
+      if (lastUpdateDate !== null && lastUpdateStock !== null) {
+        // Temos um intervalo entre a última atualização e esta
+        const days = daysBetween(lastUpdateDate, event.date);
+        const consumed = lastUpdateStock - event.qty; // quanto foi consumido no intervalo
+
+        if (days >= MIN_SEGMENT_DAYS && consumed > 0) {
+          segments.push({ consumed, days });
+        }
+        // consumed < 0 significa recontagem maior (descartamos)
+        // days < MIN_SEGMENT_DAYS é muito curto para ser confiável (descartamos)
+      }
+
+      // Atualiza referência para próxima iteração
+      currentStock = event.qty;
+      lastUpdateDate = event.date;
+      lastUpdateStock = event.qty;
+    }
+  }
+
+  if (segments.length === 0) return null;
+
+  // Média ponderada por dias: consumo_diário = Σ(consumo_i) / Σ(dias_i)
+  const totalConsumed = segments.reduce((sum, s) => sum + s.consumed, 0);
+  const totalDays     = segments.reduce((sum, s) => sum + s.days, 0);
+  const dailyRate     = totalConsumed / totalDays;
+
+  return dailyRate * 30; // converte para mensal
+}
+
+// ─── Fallback: cálculo original por frequência de compra ─────────────────────
+function calcAvgMonthlyFallback(
+  itemId: string,
+  item: Item,
+  purchases: Purchase[]
+): number {
+  const byMonth: Record<string, number> = {};
+  purchases.forEach((p) => {
+    p.lines.forEach((l) => {
+      if (l.itemId !== itemId) return;
+      const qty = item.type === "bulk" ? (l.totalQty ?? 0) : l.numPkgs;
+      const k = p.date.slice(0, 7);
+      byMonth[k] = (byMonth[k] || 0) + qty;
+    });
+  });
+  const monthValues = Object.values(byMonth);
+  return monthValues.length
+    ? monthValues.reduce((a, b) => a + b, 0) / monthValues.length
+    : 0;
+}
+
+// ─── Stats Calculation ────────────────────────────────────────────────────────
+export function calcStats(
+  itemId: string,
+  items: Item[],
+  purchases: Purchase[],
+  warehouseEntries: WarehouseEntry[]
+): ItemStats | null {
+  const item = items.find((i) => i.id === itemId);
+  if (!item) return null;
+
+  // Monta entradas de preço (igual à lógica original)
+  const entries: any[] = [];
+  purchases.forEach((p) => {
+    p.lines.forEach((l) => {
+      if (l.itemId !== itemId) return;
+      if (item.type === "bulk") {
+        entries.push({
+          qty: l.totalQty,
+          pricePerUnit: l.pricePerUnit,
+          date: p.date,
+          market: p.marketId,
+          numPkgs: l.numPkgs,
+          pkgQty: l.pkgQty,
+          totalQty: l.totalQty,
+          discountTotal: l.discountTotal,
+          discountPerPkg: l.discountPerPkg,
+          pricePerPkg: l.pricePerPkg,
+          pricePerPkgAfterDiscount: l.pricePerPkgAfterDiscount,
+          total: l.total,
+          brand: l.brand,
+        });
+      } else {
+        const effectivePricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
+        const effectivePricePerInternal =
+          l.discountTotal > 0
+            ? effectivePricePerPkg / (item.pkgSize || 1)
+            : l.pricePerInternal;
+        entries.push({
+          qty: l.numPkgs,
+          pricePerPkg: effectivePricePerPkg,
+          pricePerInternal: effectivePricePerInternal,
+          date: p.date,
+          market: p.marketId,
+          numPkgs: l.numPkgs,
+          discountTotal: l.discountTotal,
+          discountPerPkg: l.discountPerPkg,
+          pricePerPkgAfterDiscount: l.pricePerPkgAfterDiscount,
+          total: l.total,
+          brand: l.brand,
+        });
+      }
+    });
+  });
+
+  // Calcula avgMonthly: tenta linha do tempo primeiro, usa fallback se necessário
+  const timelineAvg = calcAvgMonthlyFromTimeline(itemId, item, purchases, warehouseEntries);
+  const avgMonthly  = timelineAvg !== null
+    ? timelineAvg
+    : calcAvgMonthlyFallback(itemId, item, purchases);
+
+  // Preços (igual à lógica original)
+  if (item.type === "bulk") {
+    const prices = entries.map((e: any) => e.pricePerUnit);
+    if (!prices.length) return null;
+    return {
+      avgMonthly,
+      count: entries.length,
+      entries,
+      avgPrice: prices.reduce((a, b) => a + b, 0) / prices.length,
+      minPrice: Math.min(...prices),
+      lastPrice: prices[prices.length - 1],
+    };
+  } else {
+    const pkgPrices = entries.map((e: any) => e.pricePerPkg);
+    const intPrices = entries.map((e: any) => e.pricePerInternal).filter(Boolean);
+    if (!pkgPrices.length) return null;
+    return {
+      avgMonthly,
+      count: entries.length,
+      entries,
+      avgPrice: pkgPrices.reduce((a, b) => a + b, 0) / pkgPrices.length,
+      minPrice: Math.min(...pkgPrices),
+      lastPrice: pkgPrices[pkgPrices.length - 1],
+      avgInternal: intPrices.length ? intPrices.reduce((a, b) => a + b, 0) / intPrices.length : null,
+      minInternal: intPrices.length ? Math.min(...intPrices) : null,
+      lastInternal: intPrices.length ? intPrices[intPrices.length - 1] : null,
+    };
+  }
+}
+
+// ─── Low Stock ────────────────────────────────────────────────────────────────
 export interface LowStockItem {
   item: Item;
   warehouseItem: WarehouseItem;
@@ -200,98 +420,6 @@ export function getLowStockItems(
     })
     .filter((entry): entry is LowStockItem => entry !== null)
     .sort((a, b) => a.daysLeft - b.daysLeft);
-}
-
-// ─── Stats Calculation ────────────────────────────────────────────────────────
-export function calcStats(
-  itemId: string,
-  items: Item[],
-  purchases: Purchase[],
-  _warehouseEntries: WarehouseEntry[]
-): ItemStats | null {
-  const item = items.find((i) => i.id === itemId);
-  if (!item) return null;
-
-  const entries: any[] = [];
-  purchases.forEach((p) => {
-    p.lines.forEach((l) => {
-      if (l.itemId !== itemId) return;
-      if (item.type === "bulk") {
-        entries.push({
-          qty: l.totalQty,
-          pricePerUnit: l.pricePerUnit,
-          date: p.date,
-          market: p.marketId,
-          numPkgs: l.numPkgs,
-          pkgQty: l.pkgQty,
-          totalQty: l.totalQty,
-          discountTotal: l.discountTotal,
-          discountPerPkg: l.discountPerPkg,
-          pricePerPkg: l.pricePerPkg,
-          pricePerPkgAfterDiscount: l.pricePerPkgAfterDiscount,
-          total: l.total,
-          brand: l.brand,
-        });
-      } else {
-        const effectivePricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
-        const effectivePricePerInternal =
-          l.discountTotal > 0
-            ? effectivePricePerPkg / (item.pkgSize || 1)
-            : l.pricePerInternal;
-        entries.push({
-          qty: l.numPkgs,
-          pricePerPkg: effectivePricePerPkg,
-          pricePerInternal: effectivePricePerInternal,
-          date: p.date,
-          market: p.marketId,
-          numPkgs: l.numPkgs,
-          discountTotal: l.discountTotal,
-          discountPerPkg: l.discountPerPkg,
-          pricePerPkgAfterDiscount: l.pricePerPkgAfterDiscount,
-          total: l.total,
-          brand: l.brand,
-        });
-      }
-    });
-  });
-
-  const byMonth: Record<string, number> = {};
-  entries.forEach(({ qty, date }: any) => {
-    const k = date.slice(0, 7);
-    byMonth[k] = (byMonth[k] || 0) + qty;
-  });
-  const monthValues = Object.values(byMonth);
-  const avgMonthly = monthValues.length
-    ? monthValues.reduce((a, b) => a + b, 0) / monthValues.length
-    : 0;
-
-  if (item.type === "bulk") {
-    const prices = entries.map((e: any) => e.pricePerUnit);
-    if (!prices.length) return null;
-    return {
-      avgMonthly,
-      count: entries.length,
-      entries,
-      avgPrice: prices.reduce((a, b) => a + b, 0) / prices.length,
-      minPrice: Math.min(...prices),
-      lastPrice: prices[prices.length - 1],
-    };
-  } else {
-    const pkgPrices = entries.map((e: any) => e.pricePerPkg);
-    const intPrices = entries.map((e: any) => e.pricePerInternal).filter(Boolean);
-    if (!pkgPrices.length) return null;
-    return {
-      avgMonthly,
-      count: entries.length,
-      entries,
-      avgPrice: pkgPrices.reduce((a, b) => a + b, 0) / pkgPrices.length,
-      minPrice: Math.min(...pkgPrices),
-      lastPrice: pkgPrices[pkgPrices.length - 1],
-      avgInternal: intPrices.length ? intPrices.reduce((a, b) => a + b, 0) / intPrices.length : null,
-      minInternal: intPrices.length ? Math.min(...intPrices) : null,
-      lastInternal: intPrices.length ? intPrices[intPrices.length - 1] : null,
-    };
-  }
 }
 
 // ─── Price by Market ──────────────────────────────────────────────────────────
