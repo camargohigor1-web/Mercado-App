@@ -454,3 +454,13 @@ export function calcPriceByMarket(
     }))
     .sort((a, b) => a.avgPrice - b.avgPrice);
 }
+
+// ─── Helper: busca entries do warehouse para um item específico ───────────────
+// Use esta função em vez de warehouse.flatMap(w => w.entries || [])
+// para garantir que apenas as entries do item correto sejam passadas ao calcStats.
+export function getWarehouseEntries(
+  itemId: string,
+  warehouse: WarehouseItem[]
+): WarehouseEntry[] {
+  return warehouse.find(w => w.itemId === itemId)?.entries ?? [];
+}

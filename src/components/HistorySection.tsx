@@ -65,7 +65,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   const getItem = (id: string) => items.find(i => i.id === id);
 
   const withStats = items
-    .map(item => ({ item, stats: calcStats(item.id, items, purchases, warehouse.flatMap(w => w.entries || [])) }))
+    .map(item => ({ item, stats: calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) }))
     .filter(({ stats }) => stats !== null)
     .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
     .filter(({ item }) => !filterCat || item.category === filterCat);
@@ -381,7 +381,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
 
       {subTab === "products" && (() => {
-        const catsWithData = [...new Set(items.filter(item => calcStats(item.id, items, purchases, warehouse.flatMap(w => w.entries || [])) !== null).map(item => item.category).filter(Boolean))];
+        const catsWithData = [...new Set(items.filter(item => calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) !== null).map(item => item.category).filter(Boolean))];
         return (
           <div className="space-y-2">
             {catsWithData.length > 1 && (

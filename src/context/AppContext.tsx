@@ -11,9 +11,16 @@
 //   - Flag `isRemoteUpdate` evita que atualizações vindas do Firestore
 //     sejam re-enviadas de volta ao Firestore.
 //
-// Proteção contra duplicação:
-//   - Debounce de 300ms em cada campo antes de enviar ao Firestore,
-//     coletando múltiplas alterações rápidas em uma única escrita.
+// Proteção contra race condition:
+//   - Cada escrita local registra um timestamp em `lastLocalWriteAt`.
+//   - O listener onSnapshot ignora atualizações remotas que cheguem dentro
+//     de REMOTE_IGNORE_MS após uma escrita local — evita que o Firestore
+//     devolva a versão anterior antes do debounce enviar a versão nova.
+//
+// Debounce:
+//   - 800ms (era 300ms) para garantir que escritas rápidas sejam agrupadas
+//     e que o Firestore já tenha recebido o dado novo antes de qualquer
+//     snapshot remoto chegar de volta.
 
 import {
   createContext,
@@ -32,6 +39,12 @@ import {
   saveAllData,
   type SharedData,
 } from "../services/firestoreService";
+
+// Após uma escrita local, ignora snapshots remotos por este tempo (ms)
+const REMOTE_IGNORE_MS = 3000;
+
+// Debounce para envio ao Firestore (ms)
+const DEBOUNCE_MS = 800;
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 interface AppState {
@@ -53,7 +66,6 @@ interface AppContextType extends AppState {
   setCategories: (v: string[]) => void;
   setTheme: (v: string) => void;
   restoreAll: (data: Partial<AppState>) => void;
-  // Status de sincronização (para uso futuro em UI)
   syncStatus: "idle" | "syncing" | "error" | "offline";
 }
 
@@ -63,7 +75,7 @@ const AppCtx = createContext<AppContextType | null>(null);
 function useDebounce() {
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  return useCallback((key: string, fn: () => void, delay = 300) => {
+  return useCallback((key: string, fn: () => void, delay = DEBOUNCE_MS) => {
     if (timers.current[key]) clearTimeout(timers.current[key]);
     timers.current[key] = setTimeout(fn, delay);
   }, []);
@@ -84,84 +96,81 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeRaw] = useState<string>(() => load(KEYS.theme, "dark"));
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error" | "offline">("idle");
 
-  // ── Flag para evitar loop de sync ─────────────────────────────────────────
-  // Quando o Firestore atualiza o estado local, não queremos reenviar ao Firestore.
-  const isRemoteUpdate = useRef(false);
+  // ── Flags de controle ─────────────────────────────────────────────────────
+  const isRemoteUpdate  = useRef(false);
+  // Timestamp da última escrita local — usado para ignorar snapshots remotos
+  // que cheguem logo após uma escrita (race condition)
+  const lastLocalWriteAt = useRef<number>(0);
+
   const debounce = useDebounce();
 
-  // ── Funções de escrita que atualizam estado + localStorage + Firestore ────
-  // Cada setter tem duas versões:
-  //   - "Raw": apenas atualiza estado React (usado internamente pelo listener)
-  //   - pública: atualiza estado + persiste em ambos os destinos
+  // ── Marca uma escrita local ───────────────────────────────────────────────
+  function markLocalWrite() {
+    lastLocalWriteAt.current = Date.now();
+  }
 
+  // ── Setters públicos ──────────────────────────────────────────────────────
   const setItems = useCallback((v: Item[]) => {
     setItemsRaw(v);
     save(KEYS.items, v);
-    if (!isRemoteUpdate.current) {
-      debounce("items", () => saveField("items", v));
-    }
+    markLocalWrite();
+    debounce("items", () => saveField("items", v));
   }, [debounce]);
 
   const setMarkets = useCallback((v: Market[]) => {
     setMarketsRaw(v);
     save(KEYS.markets, v);
-    if (!isRemoteUpdate.current) {
-      debounce("markets", () => saveField("markets", v));
-    }
+    markLocalWrite();
+    debounce("markets", () => saveField("markets", v));
   }, [debounce]);
 
   const setPurchases = useCallback((v: Purchase[]) => {
     setPurchasesRaw(v);
     save(KEYS.purchases, v);
-    if (!isRemoteUpdate.current) {
-      debounce("purchases", () => saveField("purchases", v));
-    }
+    markLocalWrite();
+    debounce("purchases", () => saveField("purchases", v));
   }, [debounce]);
 
   const setList = useCallback((v: ShoppingListEntry[]) => {
     setListRaw(v);
     save(KEYS.shoppingList, v);
-    if (!isRemoteUpdate.current) {
-      debounce("shoppingList", () => saveField("shoppingList", v));
-    }
+    markLocalWrite();
+    debounce("shoppingList", () => saveField("shoppingList", v));
   }, [debounce]);
 
   const setWarehouse = useCallback((v: WarehouseItem[]) => {
     setWarehouseRaw(v);
     save(KEYS.warehouse, v);
-    if (!isRemoteUpdate.current) {
-      debounce("warehouse", () => saveField("warehouse", v));
-    }
+    markLocalWrite();
+    debounce("warehouse", () => saveField("warehouse", v));
   }, [debounce]);
 
   const setCategories = useCallback((v: string[]) => {
     setCategoriesRaw(v);
     save(KEYS.categories, v);
-    if (!isRemoteUpdate.current) {
-      debounce("categories", () => saveField("categories", v));
-    }
+    markLocalWrite();
+    debounce("categories", () => saveField("categories", v));
   }, [debounce]);
 
   const setTheme = useCallback((v: string) => {
     setThemeRaw(v);
     save(KEYS.theme, v);
-    if (!isRemoteUpdate.current) {
-      debounce("theme", () => saveField("theme", v));
-    }
+    markLocalWrite();
+    debounce("theme", () => saveField("theme", v));
   }, [debounce]);
 
   // ── Restore completo (importar backup) ────────────────────────────────────
   const restoreAll = useCallback(async (data: Partial<AppState>) => {
     isRemoteUpdate.current = true;
+    markLocalWrite();
 
-    if (data.items !== undefined)      { setItemsRaw(data.items);       save(KEYS.items, data.items); }
-    if (data.markets !== undefined)    { setMarketsRaw(data.markets);   save(KEYS.markets, data.markets); }
+    if (data.items !== undefined)      { setItemsRaw(data.items);         save(KEYS.items, data.items); }
+    if (data.markets !== undefined)    { setMarketsRaw(data.markets);     save(KEYS.markets, data.markets); }
     if (data.purchases !== undefined)  { setPurchasesRaw(data.purchases); save(KEYS.purchases, data.purchases); }
-    if (data.list !== undefined)       { setListRaw(data.list);         save(KEYS.shoppingList, data.list); }
+    if (data.list !== undefined)       { setListRaw(data.list);           save(KEYS.shoppingList, data.list); }
     if (data.warehouse !== undefined)  { setWarehouseRaw(data.warehouse); save(KEYS.warehouse, data.warehouse); }
     if (data.categories !== undefined) { setCategoriesRaw(data.categories); save(KEYS.categories, data.categories); }
 
-    // Envia tudo ao Firestore de uma vez (não usa debounce aqui)
     const firestorePayload: SharedData = {};
     if (data.items !== undefined)      firestorePayload.items = data.items;
     if (data.markets !== undefined)    firestorePayload.markets = data.markets;
@@ -185,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = subscribeToSharedData((remoteData) => {
       if (!remoteData) {
-        // Primeira vez: envia dados locais ao Firestore para inicializá-lo
+        // Primeira vez: inicializa o Firestore com dados locais
         setSyncStatus("idle");
         const localPayload: SharedData = {
           items:        load(KEYS.items, []),
@@ -200,7 +209,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Dados chegaram do Firestore — atualizar estado sem re-enviar ao Firestore
+      // ── Proteção contra race condition ────────────────────────────────────
+      // Se chegou um snapshot remoto logo após uma escrita local,
+      // ignoramos — o Firestore ainda não processou nossa escrita
+      // e este snapshot provavelmente é a versão antiga.
+      const msSinceLastWrite = Date.now() - lastLocalWriteAt.current;
+      if (msSinceLastWrite < REMOTE_IGNORE_MS) {
+        console.debug(`[AppContext] Snapshot remoto ignorado (${msSinceLastWrite}ms após escrita local)`);
+        setSyncStatus("idle");
+        return;
+      }
+
+      // Dados chegaram do Firestore — atualizar estado sem re-enviar
       isRemoteUpdate.current = true;
 
       if (remoteData.items !== undefined) {
@@ -232,19 +252,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         save(KEYS.theme, remoteData.theme);
       }
 
-      // Libera flag após aplicar todas as atualizações
-      // Usa setTimeout(0) para garantir que os setters já terminaram
       setTimeout(() => {
         isRemoteUpdate.current = false;
         setSyncStatus("idle");
       }, 0);
     });
 
-    // Cleanup: remove listener ao desmontar
     return () => {
       unsubscribe();
     };
-  }, []); // Roda apenas uma vez ao montar
+  }, []);
 
   return (
     <AppCtx.Provider

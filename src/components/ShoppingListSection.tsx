@@ -45,7 +45,7 @@ export function ShoppingListSection({
 
   const withStats = items.map(i => ({
     item: i,
-    stats: calcStats(i.id, items, purchases, warehouse.flatMap(w => w.entries || [])),
+    stats: calcStats(i.id, items, purchases, warehouse.find(w => w.itemId === i.id)?.entries ?? []),
   }));
   const available = withStats.filter(({ item }) => !inList.has(item.id));
   const addCategoryOptions = [...new Set(available.map(({ item }) => item.category || "Sem categoria"))].sort();
@@ -148,7 +148,7 @@ export function ShoppingListSection({
       .map(li => {
         const item = items.find(i => i.id === li.itemId);
         if (!item) return null;
-        const stats = calcStats(li.itemId, items, purchases, warehouse.flatMap(w => w.entries || []));
+        const stats = calcStats(li.itemId, items, purchases, warehouse.find(w => w.itemId === li.itemId)?.entries ?? []);
         if (!stats || !stats.entries.length) return null;
         const last = stats.entries[stats.entries.length - 1];
         const qty = (li as any).qty || 1;
@@ -559,7 +559,7 @@ export function ShoppingListSection({
       {/* Decision Guide Modal */}
       {decisionItem && (() => {
         const item = decisionItem;
-        const stats = calcStats(item.id, items, purchases, warehouse.flatMap(w => w.entries || []));
+        const stats = calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []);
         const factor = getDisplayFactor(item);
         const du = getDisplayUnit(item);
         const allEntries: any[] = [];
@@ -759,7 +759,7 @@ export function ShoppingListSection({
             <div className="space-y-1.5">
               {activeList.map(li => {
                 const item = items.find(i => i.id === li.itemId);
-                const stats = calcStats(li.itemId, items, purchases, warehouse.flatMap(w => w.entries || []));
+                const stats = calcStats(li.itemId, items, purchases, warehouse.find(w => w.itemId === li.itemId)?.entries ?? []);
                 if (!item) return null;
                 const hasHistory = stats && stats.entries.length > 0;
                 const qty = (li as any).qty || 1;
