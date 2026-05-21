@@ -55,11 +55,21 @@ export async function saveField(
   key: FirestoreDataKey,
   value: any
 ): Promise<void> {
-  await setDoc(
-    getGroupDocRef(),
-    { [key]: value, _updatedAt: new Date().toISOString() },
-    { merge: true }
-  );
+  // Log de chamada adicionado
+  console.log("[firestore] saveField chamado:", key, "| tamanho:", JSON.stringify(value).length);
+  
+  try {
+    await setDoc(
+      getGroupDocRef(),
+      { [key]: value, _updatedAt: new Date().toISOString() },
+      { merge: true }
+    );
+    // Log de sucesso adicionado
+    console.log("[firestore] saveField OK:", key);
+  } catch (err) {
+    // Log de erro adicionado
+    console.error("[firestore] saveField ERRO:", key, err);
+  }
 }
 
 export async function getSharedData(): Promise<SharedData | null> {

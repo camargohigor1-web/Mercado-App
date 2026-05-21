@@ -212,6 +212,9 @@ export function calcAvgMonthlyFromTimeline(
     events.push({ date: e.date, order: 1, type: "update", qty: e.realQty });
   });
 
+  // Log adicionado aqui para depuração dos eventos gerados
+  console.log("[timeline] itemId:", itemId, "| warehouseEntries recebidas:", warehouseEntries.length, "| events:", JSON.stringify(events));
+
   if (events.filter(e => e.type === "update").length === 0) {
     // Sem nenhuma atualização real — não há dados para este método
     return null;
@@ -456,8 +459,6 @@ export function calcPriceByMarket(
 }
 
 // ─── Helper: busca entries do warehouse para um item específico ───────────────
-// Use esta função em vez de warehouse.flatMap(w => w.entries || [])
-// para garantir que apenas as entries do item correto sejam passadas ao calcStats.
 export function getWarehouseEntries(
   itemId: string,
   warehouse: WarehouseItem[]
