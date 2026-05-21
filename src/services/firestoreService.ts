@@ -37,6 +37,24 @@ export interface SharedData {
   _updatedAt?: string;
 }
 
+// ─── Remove undefined recursivamente ─────────────────────────────────────────
+// Firestore não aceita `undefined` em nenhum campo.
+// Esta função converte undefined → null em toda a estrutura,
+// garantindo que o dado seja válido antes de enviar.
+function removeUndefined(value: any): any {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (Array.isArray(value)) return value.map(removeUndefined);
+  if (typeof value === "object") {
+    const cleaned: Record<string, any> = {};
+    for (const key of Object.keys(value)) {
+      cleaned[key] = removeUndefined(value[key]);
+    }
+    return cleaned;
+  }
+  return value;
+}
+
 export function subscribeToSharedData(
   callback: (data: SharedData | null) => void
 ): Unsubscribe {
@@ -55,19 +73,16 @@ export async function saveField(
   key: FirestoreDataKey,
   value: any
 ): Promise<void> {
-  // Log de chamada adicionado
-  console.log("[firestore] saveField chamado:", key, "| tamanho:", JSON.stringify(value).length);
-  
+  const cleanValue = removeUndefined(value);
+  console.log("[firestore] saveField:", key, "| tamanho:", JSON.stringify(cleanValue).length);
   try {
     await setDoc(
       getGroupDocRef(),
-      { [key]: value, _updatedAt: new Date().toISOString() },
+      { [key]: cleanValue, _updatedAt: new Date().toISOString() },
       { merge: true }
     );
-    // Log de sucesso adicionado
     console.log("[firestore] saveField OK:", key);
   } catch (err) {
-    // Log de erro adicionado
     console.error("[firestore] saveField ERRO:", key, err);
   }
 }
@@ -78,9 +93,10 @@ export async function getSharedData(): Promise<SharedData | null> {
 }
 
 export async function saveAllData(data: SharedData): Promise<void> {
+  const cleanData = removeUndefined(data);
   await setDoc(
     getGroupDocRef(),
-    { ...data, _updatedAt: new Date().toISOString() },
+    { ...cleanData, _updatedAt: new Date().toISOString() },
     { merge: false }
   );
 }
