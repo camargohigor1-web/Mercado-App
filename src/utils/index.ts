@@ -157,26 +157,25 @@ export function getWarehouseUnit(item: Item): string {
 // ─── Consumo por linha do tempo de eventos ────────────────────────────────────
 //
 // Monta uma sequência ordenada de eventos (compras e atualizações reais) e
-// calcula o consumo real em cada intervalo entre eventos consecutivos.
+// calcula o consumo real acumulado ao longo de todo o período observado.
 //
 // Regras:
 //   - Compras somam ao estoque vigente (não resetam)
 //   - Atualizações reais definem o estoque exato naquele momento
 //   - No mesmo dia: compras vêm antes das atualizações
-//   - Segmentos com consumo negativo (recontagem maior que esperado) são descartados
-//   - Segmentos com menos de MIN_DAYS dias são descartados (muito curtos para ser confiáveis)
-//   - A média final é ponderada pelos dias de cada segmento
+//   - Segmentos com consumo negativo são descartados (recontagem maior = erro de medição)
+//   - Sem mínimo de dias — funciona com atualizações diárias
+//   - Segmentos de 0 dias (mesmo dia) contam como 1 dia para não dividir por zero
+//   - O consumo total é dividido pelo total de dias do período
 //
 // Retorna consumo médio mensal em unidade base (sem fator de escala aplicado).
-// Retorna null se não houver segmentos válidos suficientes (usa fallback).
-
-const MIN_SEGMENT_DAYS = 3;
+// Retorna null se não houver atualizações reais (usa fallback).
 
 interface TimelineEvent {
   date: string;       // "YYYY-MM-DD"
   order: number;      // 0 = compra, 1 = atualização (desempate no mesmo dia)
   type: "purchase" | "update";
-  qty: number;        // para compra: quantidade comprada (base); para update: estoque real (base)
+  qty: number;        // compra: qtd comprada (base); update: estoque real (base)
 }
 
 function daysBetween(dateA: string, dateB: string): number {
@@ -192,13 +191,11 @@ export function calcAvgMonthlyFromTimeline(
   purchases: Purchase[],
   warehouseEntries: WarehouseEntry[]
 ): number | null {
-  // Monta eventos de compra para este produto (quantidade em unidade base)
   const events: TimelineEvent[] = [];
 
   purchases.forEach((p) => {
     p.lines.forEach((l) => {
       if (l.itemId !== itemId) return;
-      // quantidade em unidade base (sem display factor)
       const qty = item.type === "bulk" ? (l.totalQty ?? 0) : l.numPkgs;
       if (qty > 0) {
         events.push({ date: p.date, order: 0, type: "purchase", qty });
@@ -206,65 +203,58 @@ export function calcAvgMonthlyFromTimeline(
     });
   });
 
-  // Monta eventos de atualização real (quantidade em unidade base)
   warehouseEntries.forEach((e) => {
-    // realQty já está em unidade base no WarehouseEntry
     events.push({ date: e.date, order: 1, type: "update", qty: e.realQty });
   });
 
-  // Log adicionado aqui para depuração dos eventos gerados
-  console.log("[timeline] itemId:", itemId, "| warehouseEntries recebidas:", warehouseEntries.length, "| events:", JSON.stringify(events));
+  if (events.filter(e => e.type === "update").length === 0) return null;
 
-  if (events.filter(e => e.type === "update").length === 0) {
-    // Sem nenhuma atualização real — não há dados para este método
-    return null;
-  }
-
-  // Ordena por data e depois por order (compras antes de atualizações no mesmo dia)
+  // Ordena: por data, compras antes de atualizações no mesmo dia
   events.sort((a, b) => {
     const dateCmp = a.date.localeCompare(b.date);
     return dateCmp !== 0 ? dateCmp : a.order - b.order;
   });
 
-  // Percorre a linha do tempo reconstituindo o estoque e coletando segmentos de consumo
+  console.log("[timeline] itemId:", itemId, "| warehouseEntries recebidas:", warehouseEntries.length, "| events:", JSON.stringify(events));
+
   let currentStock = 0;
   let lastUpdateDate: string | null = null;
   let lastUpdateStock: number | null = null;
 
-  const segments: { consumed: number; days: number }[] = [];
+  let totalConsumed = 0;
+  let totalDays = 0;
 
   for (const event of events) {
     if (event.type === "purchase") {
       currentStock += event.qty;
     } else {
-      // É uma atualização real
       if (lastUpdateDate !== null && lastUpdateStock !== null) {
-        // Temos um intervalo entre a última atualização e esta
         const days = daysBetween(lastUpdateDate, event.date);
-        const consumed = lastUpdateStock - event.qty; // quanto foi consumido no intervalo
+        // consumed = estoque reconstituído antes desta atualização - real encontrado agora
+        const consumed = lastUpdateStock - event.qty;
 
-        if (days >= MIN_SEGMENT_DAYS && consumed > 0) {
-          segments.push({ consumed, days });
+        if (consumed > 0) {
+          totalConsumed += consumed;
+          // Segmentos de 0 dias (mesmo dia) contam como 1 para não dividir por zero
+          totalDays += Math.max(days, 1);
         }
-        // consumed < 0 significa recontagem maior (descartamos)
-        // days < MIN_SEGMENT_DAYS é muito curto para ser confiável (descartamos)
+        // consumed <= 0: recontagem maior (erro de medição), descarta
       }
 
-      // Atualiza referência para próxima iteração
       currentStock = event.qty;
       lastUpdateDate = event.date;
       lastUpdateStock = event.qty;
     }
   }
 
-  if (segments.length === 0) return null;
+  if (totalDays === 0 || totalConsumed === 0) return null;
 
-  // Média ponderada por dias: consumo_diário = Σ(consumo_i) / Σ(dias_i)
-  const totalConsumed = segments.reduce((sum, s) => sum + s.consumed, 0);
-  const totalDays     = segments.reduce((sum, s) => sum + s.days, 0);
-  const dailyRate     = totalConsumed / totalDays;
+  const dailyRate = totalConsumed / totalDays;
+  const monthly = dailyRate * 30;
 
-  return dailyRate * 30; // converte para mensal
+  console.log("[timeline] totalConsumed:", totalConsumed, "| totalDays:", totalDays, "| dailyRate:", dailyRate.toFixed(4), "| monthly:", monthly.toFixed(2));
+
+  return monthly;
 }
 
 // ─── Fallback: cálculo original por frequência de compra ─────────────────────
@@ -459,6 +449,8 @@ export function calcPriceByMarket(
 }
 
 // ─── Helper: busca entries do warehouse para um item específico ───────────────
+// Use esta função em vez de warehouse.flatMap(w => w.entries || [])
+// para garantir que apenas as entries do item correto sejam passadas ao calcStats.
 export function getWarehouseEntries(
   itemId: string,
   warehouse: WarehouseItem[]
