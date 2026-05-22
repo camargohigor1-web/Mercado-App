@@ -158,6 +158,14 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       marketName, avgPrice: prices.reduce((s, p) => s + p, 0) / prices.length, count: prices.length,
     })).sort((a, b) => a.avgPrice - b.avgPrice);
 
+    // ── Totais no período filtrado ──────────────────────────────────────────
+    const totalQtyInPeriod = visibleEntries.reduce((sum: number, e: any) => {
+      if (item.type === "bulk") return sum + ((e.totalQty || 0) * factor);
+      return sum + e.numPkgs;
+    }, 0);
+    const totalSpentInPeriod = visibleEntries.reduce((sum: number, e: any) => sum + e.total, 0);
+    const periodLabel = (historyDateFrom || historyDateTo) ? "no período" : "no histórico";
+
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -190,6 +198,23 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
             <StatBox label="Preço médio/emb" val={fmt(stats.avgPrice)} color="green" />
             <StatBox label="Menor preço/emb" val={fmt(stats.minPrice)} color="teal" />
             <StatBox label="Último preço/emb" val={fmt(stats.lastPrice)} color="blue" />
+          </div>
+        )}
+
+        {visibleEntries.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            <StatBox
+              label={`Qtd comprada ${periodLabel}`}
+              val={item.type === "bulk"
+                ? `${fmtN(totalQtyInPeriod, 2)} ${du}`
+                : `${fmtN(totalQtyInPeriod, 0)} emb`}
+              color="blue"
+            />
+            <StatBox
+              label={`Total gasto ${periodLabel}`}
+              val={fmt(totalSpentInPeriod)}
+              color="teal"
+            />
           </div>
         )}
 
@@ -322,7 +347,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
               <Card key={i} className={`highlight-fadeable${isHighlighted ? " highlighted-item" : ""}`}>
                 <div id={`item-${l.itemId}`} className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
-                    const stats = calcStats(it.id, items, purchases, []);
+                    const stats = calcStats(it.id, items, purchases, warehouse.find(w => w.itemId === it.id)?.entries ?? []);
                     setReturnToPurchase(selectedPurchase); setSelectedPurchase(null); setSelectedItem({ item: it, stats });
                   }}>
                     <p className={`${isDark ? "text-slate-100 hover:text-teal-400" : "text-slate-900 hover:text-teal-600"} text-sm font-semibold transition-colors`}>{it.name}</p>
