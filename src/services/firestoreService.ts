@@ -74,14 +74,12 @@ export async function saveField(
   value: any
 ): Promise<void> {
   const cleanValue = removeUndefined(value);
-  console.log("[firestore] saveField:", key, "| tamanho:", JSON.stringify(cleanValue).length);
   try {
     await setDoc(
       getGroupDocRef(),
       { [key]: cleanValue, _updatedAt: new Date().toISOString() },
       { merge: true }
     );
-    console.log("[firestore] saveField OK:", key);
   } catch (err) {
     console.error("[firestore] saveField ERRO:", key, err);
   }

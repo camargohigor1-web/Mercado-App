@@ -215,7 +215,6 @@ export function calcAvgMonthlyFromTimeline(
     return dateCmp !== 0 ? dateCmp : a.order - b.order;
   });
 
-  console.log("[timeline] itemId:", itemId, "| warehouseEntries recebidas:", warehouseEntries.length, "| events:", JSON.stringify(events));
 
   // reconstituted: estoque acumulado desde o ultimo update (inclui compras intermediarias)
   let reconstituted = 0;
@@ -257,7 +256,6 @@ export function calcAvgMonthlyFromTimeline(
   const dailyRate = totalConsumed / totalDays;
   const monthly = dailyRate * 30;
 
-  console.log("[timeline] totalConsumed:", totalConsumed, "| totalDays:", totalDays, "| dailyRate:", dailyRate.toFixed(4), "| monthly:", monthly.toFixed(2));
 
   return monthly;
 }
