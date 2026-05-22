@@ -217,33 +217,32 @@ export function calcAvgMonthlyFromTimeline(
 
   console.log("[timeline] itemId:", itemId, "| warehouseEntries recebidas:", warehouseEntries.length, "| events:", JSON.stringify(events));
 
-  let currentStock = 0;
+  // reconstituted: estoque acumulado desde o ultimo update (inclui compras intermediarias)
+  let reconstituted = 0;
   let lastUpdateDate: string | null = null;
-  let lastUpdateStock: number | null = null;
 
   let totalConsumed = 0;
   let totalDays = 0;
 
   for (const event of events) {
     if (event.type === "purchase") {
-      currentStock += event.qty;
+      reconstituted += event.qty;
     } else {
-      if (lastUpdateDate !== null && lastUpdateStock !== null) {
+      if (lastUpdateDate !== null) {
         const days = daysBetween(lastUpdateDate, event.date);
-        // consumed = estoque reconstituído antes desta atualização - real encontrado agora
-        const consumed = lastUpdateStock - event.qty;
+        // consumed = o que deveria ter (reconstituido com compras) - o que realmente ha
+        const consumed = reconstituted - event.qty;
 
         if (consumed > 0) {
           totalConsumed += consumed;
-          // Segmentos de 0 dias (mesmo dia) contam como 1 para não dividir por zero
           totalDays += Math.max(days, 1);
         }
-        // consumed <= 0: recontagem maior (erro de medição), descarta
+        // consumed <= 0: encontrou mais do que esperado (erro de contagem), descarta
       }
 
-      currentStock = event.qty;
+      // A partir daqui o estoque reconstituido parte do valor real confirmado
+      reconstituted = event.qty;
       lastUpdateDate = event.date;
-      lastUpdateStock = event.qty;
     }
   }
 
