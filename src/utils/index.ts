@@ -224,12 +224,20 @@ export function calcAvgMonthlyFromTimeline(
   let totalConsumed = 0;
   let totalDays = 0;
 
+  // firstPurchaseDate: data da primeira compra — usada como referencia
+  // para o primeiro update quando nao ha lastUpdateDate ainda
+  const firstPurchaseDate = events.find(e => e.type === "purchase")?.date ?? null;
+
   for (const event of events) {
     if (event.type === "purchase") {
       reconstituted += event.qty;
     } else {
-      if (lastUpdateDate !== null) {
-        const days = daysBetween(lastUpdateDate, event.date);
+      // Usa o primeiro update se houver compras anteriores a ele (reconstituted > 0)
+      // Nesse caso a "data inicial" e a data da primeira compra
+      const refDate = lastUpdateDate ?? (reconstituted > 0 ? firstPurchaseDate : null);
+
+      if (refDate !== null) {
+        const days = daysBetween(refDate, event.date);
         // consumed = o que deveria ter (reconstituido com compras) - o que realmente ha
         const consumed = reconstituted - event.qty;
 
