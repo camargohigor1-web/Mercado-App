@@ -28,6 +28,18 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
   const getItem = (id: string) => items.find(i => i.id === id);
+  const renderMainTabSwitcher = (activeTab: "gastos" | "mercados") => (
+    <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
+      <button onClick={() => setMainTab("gastos")}
+        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+        Gastos
+      </button>
+      <button onClick={() => setMainTab("mercados")}
+        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+        Mercados
+      </button>
+    </div>
+  );
 
   const filtered = useMemo(() => purchases.filter(p => {
     if (dateFrom && p.date < dateFrom) return false;
@@ -53,16 +65,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
   if (mainTab === "mercados") {
     return (
       <div className="space-y-4">
-        <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-          <button onClick={() => setMainTab("gastos")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
-            Gastos
-          </button>
-          <button onClick={() => setMainTab("mercados")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
-            Mercados
-          </button>
-        </div>
+        {renderMainTabSwitcher(mainTab)}
         <MarketComparison initialMonth={initialMonth} />
       </div>
     );
@@ -171,16 +174,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
     <div className="space-y-5">
 
       {/* Main tab switcher */}
-      <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-        <button onClick={() => setMainTab("gastos")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
-          Gastos
-        </button>
-        <button onClick={() => setMainTab("mercados")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
-          Mercados
-        </button>
-      </div>
+      {renderMainTabSwitcher(mainTab)}
 
       {/* Filters */}
       <div className={card}>
