@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Empty, StatBox, BarChart } from "./ui";
+import { CategoryPills } from "./ShoppingListSection";
 import { fmt, fmtN, getLowStockItems, calcStats, getDisplayFactor } from "../utils";
 import { MarketComparison } from "./MarketComparison";
 
@@ -34,32 +35,31 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
     return true;
   }), [purchases, dateFrom, dateTo]);
 
+  // Categories that appear in filtered purchases
   const categoriesWithData = useMemo(() => {
-    const catMap: Record<string, number> = {};
+    const catSet = new Set<string>();
     filtered.forEach(p => p.lines.forEach(l => {
       const it = getItem(l.itemId);
-      const cat = it?.category || "Outro";
-      catMap[cat] = (catMap[cat] || 0) + l.total;
+      catSet.add(it?.category || "Outro");
     }));
-    return Object.keys(catMap).sort((a, b) => a.localeCompare(b));
+    return [...catSet].sort();
   }, [filtered, items]);
 
   if (purchases.length === 0) {
     return <Empty icon="chart" title="Sem dados para relatório" sub="Registre algumas compras para visualizar os relatórios e gráficos do seu histórico." />;
   }
 
-  // ── Sub-tab: Comparativo de Mercados ──────────────────────────────────────
-  if ((mainTab as string) === "mercados") {
+  // ── Mercados sub-tab ───────────────────────────────────────────────────────
+  if (mainTab === "mercados") {
     return (
       <div className="space-y-4">
-        {/* Tab switcher */}
         <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
           <button onClick={() => setMainTab("gastos")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
             Gastos
           </button>
           <button onClick={() => setMainTab("mercados")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
             Mercados
           </button>
         </div>
@@ -68,6 +68,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
     );
   }
 
+  // ── Gastos tab ─────────────────────────────────────────────────────────────
   const totalSpent     = filtered.reduce((s, p) => s + p.total, 0);
   const uniqueProducts = new Set(filtered.flatMap(p => p.lines.map(l => l.itemId))).size;
 
@@ -107,7 +108,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
   filtered.forEach(p => p.lines.forEach(l => { const it = getItem(l.itemId); const cat = it?.category || "Outro"; catMap[cat] = (catMap[cat] || 0) + l.total; }));
   const catData = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
-  // Category-mode
+  // Category detail entries
   const categoryEntries = filtered.flatMap(p =>
     p.lines.map(line => ({ purchase: p, line, item: getItem(line.itemId), market: getMkt(p.marketId) }))
           .filter(e => e.item && e.item.category === selectedCategory)
@@ -168,14 +169,15 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
 
   return (
     <div className="space-y-5">
-      {/* Tab switcher principal */}
+
+      {/* Main tab switcher */}
       <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
         <button onClick={() => setMainTab("gastos")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
           Gastos
         </button>
         <button onClick={() => setMainTab("mercados")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${(mainTab as string) === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mainTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
           Mercados
         </button>
       </div>
@@ -183,6 +185,8 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
       {/* Filters */}
       <div className={card}>
         <p className={lbl}>Filtros</p>
+
+        {/* Quick period presets */}
         <div className="flex flex-col gap-1 mb-3">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período rápido</label>
           <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900/80" : "bg-slate-100"}`}>
@@ -210,15 +214,19 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
           </div>
         </div>
 
+        {/* Category filter — pills */}
         <div className="flex flex-col gap-1 mb-3">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Categoria</label>
-          <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
-            className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-            <option value="">Todas as categorias</option>
-            {categoriesWithData.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
+          <CategoryPills
+            categories={categoriesWithData}
+            active={selectedCategory}
+            onChange={setSelectedCategory}
+            isDark={isDark}
+            allLabel="Todas"
+          />
         </div>
 
+        {/* Custom date range */}
         <div className="flex flex-col gap-1 mb-1">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período personalizado</label>
           <div className="grid grid-cols-2 gap-3">

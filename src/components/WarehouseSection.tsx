@@ -4,6 +4,7 @@ import { useAppContext } from "../context/AppContext";
 import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, StatBox, ConfirmModal } from "./ui";
+import { CategoryPills } from "./ShoppingListSection";
 import { uid, fmt, fmtN, getDisplayFactor, getWarehouseUnit, calcStats, getLowStockItems } from "../utils";
 import type { Market } from "../types";
 
@@ -53,8 +54,8 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
   const warehouseItems = items
     .filter(item => purchasedItemIds.has(item.id))
     .map(item => {
-      const w     = getWarehouseItem(item.id);
-      const stats = calcStats(item.id, items, purchases, w.entries || []);
+      const w      = getWarehouseItem(item.id);
+      const stats  = calcStats(item.id, items, purchases, w.entries || []);
       const factor     = item.type === "bulk" ? getDisplayFactor(item) : 1;
       const stock      = (w.stock || 0) * factor;
       const avgMonthly = stats ? stats.avgMonthly * factor : 0;
@@ -91,6 +92,9 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
     const ungrouped = sortedItems.filter(({ item }) => !item.category || !categories.includes(item.category));
     if (ungrouped.length) grouped["Sem categoria"] = ungrouped;
   }
+
+  // Available categories for pills
+  const availableCats = categories.filter(cat => warehouseItems.some(({ item }) => item.category === cat));
 
   function openUpdate(itemId: string) {
     setSelectedId(itemId);
@@ -245,7 +249,6 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
           {stats && <StatBox label="Último preço" val={item.type === "packaged" ? `${fmt(stats.lastPrice)}/emb` : fmt(stats.lastPrice)} />}
         </div>
 
-        {/* Últimas compras */}
         {(() => {
           const lastPurchases = [...purchases]
             .sort((a, b) => b.date.localeCompare(a.date))
@@ -268,14 +271,31 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
                             <Badge>{getMktName(p.marketId)}</Badge>
                           </div>
                           {item.type === "bulk" ? (
-                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                              {line.numPkgs} emb · {fmtN((line.totalQty || 0) * factor2, 2)} {du}
-                              <span className="text-teal-400 font-bold ml-2">{fmt((line.pricePerUnit || 0) / factor2)}/{du}</span>
-                            </p>
+                            <>
+                              <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                                {line.numPkgs} emb · {fmtN((line.totalQty || 0) * factor2, 2)} {du}
+                              </p>
+                              {line.discountTotal > 0 ? (
+                                <>
+                                  <p className="text-xs text-slate-500 line-through">{fmt(line.pricePerPkg)}/emb ▸ {fmt((line.pricePerUnit || 0) / factor2)}/{du}</p>
+                                  <p className="text-xs text-teal-400 font-semibold">{fmt(line.pricePerPkgAfterDiscount ?? line.pricePerPkg)}/emb ▸ {fmt(((line.pricePerPkgAfterDiscount ?? line.pricePerPkg) / (line.pkgQty || 1)) / factor2)}/{du} <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                                  <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}</p>
+                                </>
+                              ) : (
+                                <span className="text-teal-400 font-bold text-xs">{fmt((line.pricePerUnit || 0) / factor2)}/{du}</span>
+                              )}
+                            </>
                           ) : (
-                            <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>{line.numPkgs} emb × {fmt(line.pricePerPkg)}/emb</p>
+                            <>
+                              <p className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}>{line.numPkgs} emb × {fmt(line.pricePerPkg)}/emb</p>
+                              {line.discountTotal > 0 && (
+                                <>
+                                  <p className="text-xs text-teal-400 font-semibold">{fmt(line.pricePerPkgAfterDiscount ?? line.pricePerPkg)}/emb <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                                  <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}</p>
+                                </>
+                              )}
+                            </>
                           )}
-                          {line.discountTotal > 0 && <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1"><Icon name="tag" size={10} />Desc: {fmt(line.discountTotal)}</p>}
                         </div>
                         <p className="text-teal-400 font-black text-sm flex-shrink-0">{fmt(line.total)}</p>
                       </div>
@@ -320,8 +340,6 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
   }
 
   // ── List view ───────────────────────────────────────────────────────────────
-  const availableCats = categories.filter(cat => warehouseItems.some(({ item }) => item.category === cat));
-
   return (
     <div className="space-y-4">
       {/* View toggle */}
@@ -336,17 +354,17 @@ export function WarehouseSection({ onGoToNewPurchase, onSelectionChange }: Wareh
         placeholder={view === "alerts" ? "Buscar alerta..." : "Buscar produto..."}
         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
 
-      {availableCats.length > 0 && (
-        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-          className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
-          <option value="">Todas as categorias</option>
-          {availableCats.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-      )}
+      {/* Category pills */}
+      <CategoryPills
+        categories={availableCats}
+        active={filterCat}
+        onChange={setFilterCat}
+        isDark={isDark}
+      />
 
       {view === "current" && <InfoBox color="blue">O armazém controla seu estoque. Compras aumentam o estoque automaticamente. Use "Atualizar" para registrar a contagem real.</InfoBox>}
 
-      {/* Sort controls */}
+      {/* Sort controls — current view only */}
       {view === "current" && warehouseItems.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-col gap-1">

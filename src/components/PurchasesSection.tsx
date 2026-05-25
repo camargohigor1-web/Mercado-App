@@ -223,6 +223,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     else setSelectedIds(new Set(sorted.map(p => p.id)));
   }
 
+  // ── lineDisplay: shows original + post-discount prices clearly ──────────────
   function lineDisplay(l: PurchaseLine) {
     const it = getItem(l.itemId);
     if (!it) return null;
@@ -232,22 +233,33 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
       const du = getDisplayUnit(it);
       const pkgQtyDisplay = +((l.pkgQty || 0) * factor).toPrecision(10);
       const totalQtyDisplay = +((l.totalQty || 0) * factor).toPrecision(10);
-      const pricePerDU = (l.pricePerUnit || 0) / factor;
-      const originalPricePerDU = l.pricePerPkg / ((l.pkgQty || 1) * factor);
+      // Original prices
+      const origPricePerDU = l.pricePerPkg / ((l.pkgQty || 1) * factor);
+      // After-discount prices
+      const afterPricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
+      const afterPricePerDU = afterPricePerPkg / ((l.pkgQty || 1) * factor);
       return {
         main: `${l.numPkgs} emb x ${fmtN(pkgQtyDisplay, 3).replace(/,?0+$/, "")} ${du} = ${fmtN(totalQtyDisplay, 3).replace(/,?0+$/, "")} ${du}`,
-        sub: hasDiscount
-          ? `Sem desc: ${fmt(l.pricePerPkg)}/emb (${fmt(originalPricePerDU)}/${du}) ▸ Com desc: ${fmt(l.pricePerPkgAfterDiscount || 0)}/emb (${fmt(pricePerDU)}/${du})`
-          : `${fmt(l.pricePerPkg)}/emb ▸ ${fmt(pricePerDU)}/${du}`,
-        discount: hasDiscount ? `Desconto: ${fmt(l.discountTotal)} total · ${fmt(l.discountPerPkg)}/emb` : null,
+        priceOriginal: hasDiscount ? `${fmt(l.pricePerPkg)}/emb (${fmt(origPricePerDU)}/${du})` : null,
+        priceFinal: hasDiscount
+          ? `${fmt(afterPricePerPkg)}/emb (${fmt(afterPricePerDU)}/${du}) c/ desc`
+          : `${fmt(l.pricePerPkg)}/emb ▸ ${fmt(origPricePerDU)}/${du}`,
+        discount: hasDiscount ? `Desc: ${fmt(l.discountTotal)} total · ${fmt(l.discountPerPkg)}/emb` : null,
         extra: null,
       };
     }
+    // Packaged
+    const afterPricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
+    const afterPricePerInternal = afterPricePerPkg / (it.pkgSize || 1);
+    const unitLabel = it.pkgUnit?.replace(/s$/, "") || "un";
     return {
-      main: `${l.numPkgs} emb x ${fmt(l.pricePerPkg)}/emb${hasDiscount ? ` ▸ ${fmt(l.pricePerPkgAfterDiscount || 0)}/emb` : ""}`,
-      sub: null,
-      discount: hasDiscount ? `Desconto: ${fmt(l.discountTotal)} total · ${fmt(l.discountPerPkg)}/emb` : null,
-      extra: `${fmt(l.pricePerInternal || 0)}/${it.pkgUnit?.replace(/s$/, "")}`,
+      main: `${l.numPkgs} emb x ${fmt(l.pricePerPkg)}/emb`,
+      priceOriginal: hasDiscount ? `${fmt(l.pricePerInternal || 0)}/${unitLabel}` : null,
+      priceFinal: hasDiscount
+        ? `${fmt(afterPricePerPkg)}/emb (${fmt(afterPricePerInternal)}/${unitLabel}) c/ desc`
+        : `${fmt(l.pricePerInternal || 0)}/${unitLabel}`,
+      discount: hasDiscount ? `Desc: ${fmt(l.discountTotal)} total · ${fmt(l.discountPerPkg)}/emb` : null,
+      extra: null,
     };
   }
 
@@ -299,9 +311,17 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                     <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
                     {l.brand && <p className="text-xs text-slate-500 mt-0.5">Marca: {l.brand}</p>}
                     <p className="text-xs text-slate-500 mt-1">{d?.main}</p>
-                    {d?.discount && <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1"><Icon name="tag" size={10} />{d.discount}</p>}
-                    {d?.sub && <p className="text-xs text-teal-500 mt-0.5">{d.sub}</p>}
-                    {d?.extra && <p className="text-xs text-teal-500 mt-0.5">{d.extra}</p>}
+                    {d?.priceOriginal && (
+                      <p className="text-xs text-slate-500 line-through mt-0.5">{d.priceOriginal}</p>
+                    )}
+                    {d?.priceFinal && (
+                      <p className={`text-xs mt-0.5 font-semibold ${d.discount ? "text-teal-400" : "text-teal-500"}`}>{d.priceFinal}</p>
+                    )}
+                    {d?.discount && (
+                      <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1">
+                        <Icon name="tag" size={10} />{d.discount}
+                      </p>
+                    )}
                   </div>
                   <p className="text-teal-400 font-black text-sm flex-shrink-0">{fmt(l.total)}</p>
                 </div>
@@ -375,9 +395,9 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                       <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
                       {l.brand && <p className="text-xs text-slate-600">{l.brand}</p>}
                       <p className="text-xs text-slate-500 mt-1">{d?.main}</p>
-                      {d?.discount && <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1"><Icon name="tag" size={10} />{d.discount}</p>}
-                      {d?.sub && <p className="text-xs text-teal-500">{d.sub}</p>}
-                      {d?.extra && <p className="text-xs text-teal-500">{d.extra}</p>}
+                      {d?.priceOriginal && <p className="text-xs text-slate-500 line-through mt-0.5">{d.priceOriginal}</p>}
+                      {d?.priceFinal && <p className={`text-xs mt-0.5 font-semibold ${d.discount ? "text-teal-400" : "text-teal-500"}`}>{d.priceFinal}</p>}
+                      {d?.discount && <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />{d.discount}</p>}
                       <p className="text-xs text-teal-400 font-bold mt-0.5">{fmt(l.total)}</p>
                     </div>
                     <div className="flex gap-0.5 flex-shrink-0">
@@ -395,7 +415,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           )}
         </div>
 
-        {/* Barra de salvar — sticky no bottom, acima do FAB */}
+        {/* Save bar */}
         <div className={`sticky bottom-0 z-10 -mx-4 px-4 py-3 ${isDark ? "bg-slate-950/95" : "bg-slate-50/95"} backdrop-blur-xl border-t ${isDark ? "border-white/5" : "border-black/6"}`}>
           <div className="flex gap-3">
             <Btn onClick={() => { setView("list"); setEditingPurchase(null); }} variant="secondary" className="flex-1">Cancelar</Btn>
@@ -405,16 +425,14 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           </div>
         </div>
 
-        {/* FAB — posicionado acima da barra sticky (bottom-20 = 80px, barra tem ~64px + nav ~56px) */}
-        <button
-          onClick={() => openLine()}
+        {/* FAB */}
+        <button onClick={() => openLine()}
           className={`fixed bottom-24 right-5 z-30 w-14 h-14 rounded-2xl bg-teal-500 text-white shadow-2xl shadow-teal-500/40 flex items-center justify-center active:scale-90 transition-all press-scale border-4 fab-pulse ${isDark ? "border-slate-950" : "border-white"}`}
-          aria-label="Adicionar item"
-        >
+          aria-label="Adicionar item">
           <Icon name="plus" size={24} />
         </button>
 
-        {/* Modal de linha */}
+        {/* Line modal */}
         {lineModal && (
           <Modal title={editIdx !== null ? "Editar Item" : "Adicionar Item"} onClose={() => setLineModal(false)}>
             <div className="space-y-3">
@@ -453,6 +471,12 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                         <div className={`${isDark ? "border-t border-slate-800" : "border-t border-slate-200"} pt-1.5 mt-1 space-y-1`}>
                           <div className="flex justify-between text-xs"><span className="text-amber-400 flex items-center gap-1"><Icon name="tag" size={10} />Desconto total</span><span className="text-amber-400 font-bold">- {fmt(discountVal)}</span></div>
                           <div className="flex justify-between text-xs"><span className="text-slate-500">Preço/emb c/ desconto</span><span className="text-green-400 font-bold">{fmt(+lf.pricePerPkg - discountVal / +lf.numPkgs)}</span></div>
+                          {isBulk && (
+                            <div className="flex justify-between text-xs"><span className="text-slate-500">Preço/{du} c/ desconto</span><span className="text-teal-400 font-bold">{fmt((+lf.pricePerPkg - discountVal / +lf.numPkgs) / +lf.pkgQty)}</span></div>
+                          )}
+                          {!isBulk && lineItem.pkgSize && (
+                            <div className="flex justify-between text-xs"><span className="text-slate-500">Preço/{lineItem.pkgUnit?.replace(/s$/, "")} c/ desconto</span><span className="text-teal-400 font-bold">{fmt((+lf.pricePerPkg - discountVal / +lf.numPkgs) / lineItem.pkgSize)}</span></div>
+                          )}
                         </div>
                       )}
                       <div className={`flex justify-between text-xs ${isDark ? "border-t border-slate-800" : "border-t border-slate-200"} pt-1.5 mt-1`}><span className="text-slate-500">Total a pagar</span><span className="text-teal-400 font-black">{fmt(+lf.numPkgs * +lf.pricePerPkg - discountVal)}</span></div>
@@ -471,7 +495,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           </Modal>
         )}
 
-        {/* Modal de novo produto inline */}
+        {/* New product inline modal */}
         {productModal && (
           <Modal title="Cadastrar Produto" onClose={() => setProductModal(false)}>
             <div className="space-y-4">

@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Badge, Empty, ConfirmModal } from "./ui";
+import { CategoryPills } from "./ShoppingListSection";
 import { uid, fmtN, getScaleOptions, BULK_UNITS, PKG_UNITS, DEFAULT_CATEGORIES } from "../utils";
 import type { Item } from "../types";
 
@@ -89,6 +90,7 @@ export function ItemsSection() {
   const filtered = items
     .filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
     .filter(i => !filterCat || i.category === filterCat);
+
   const grouped: Record<string, Item[]> = {};
   categories.forEach(cat => {
     const g = filtered.filter(i => i.category === cat);
@@ -97,26 +99,28 @@ export function ItemsSection() {
   const uncat = filtered.filter(i => !i.category || !categories.includes(i.category));
   if (uncat.length) grouped["Sem categoria"] = uncat;
 
+  // Categories that actually have items
+  const activeCats = categories.filter(cat => items.some(i => i.category === cat));
+
   const scaleOptions = getScaleOptions(form.unit);
   const hasScales = scaleOptions.length > 1;
 
   return (
     <div className="space-y-4">
+      {/* Toolbar */}
       <div className="flex items-center gap-2">
         <Inp value={search} onChange={setSearch} placeholder="Buscar produto..." className="flex-1" />
         <Btn onClick={() => setCatModal(true)} variant="outline" size="sm"><Icon name="settings" size={13} /></Btn>
         <Btn onClick={openNew}><Icon name="plus" size={15} />Novo</Btn>
       </div>
 
-      {categories.length > 0 && (
-        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-          className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all appearance-none`}>
-          <option value="">Todas as categorias</option>
-          {categories.filter(cat => items.some(i => i.category === cat)).map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-      )}
+      {/* Category pills */}
+      <CategoryPills
+        categories={activeCats}
+        active={filterCat}
+        onChange={setFilterCat}
+        isDark={isDark}
+      />
 
       {filtered.length === 0 ? (
         search ? (
@@ -180,6 +184,7 @@ export function ItemsSection() {
         ))
       )}
 
+      {/* Item modal */}
       {modal && (
         <Modal title={editing ? "Editar Produto" : "Novo Produto"} onClose={() => setModal(false)}>
           <div className="space-y-4">
@@ -236,6 +241,7 @@ export function ItemsSection() {
         </Modal>
       )}
 
+      {/* Category manager modal */}
       {catModal && (
         <Modal title="Gerenciar Categorias" onClose={() => setCatModal(false)}>
           <div className="space-y-4">

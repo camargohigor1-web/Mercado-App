@@ -5,6 +5,7 @@ import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { Icon } from "./Icon";
 import { Card, Badge, Empty, StatBox, BarChart, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
+import { CategoryPills } from "./ShoppingListSection";
 import { fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
 import type { Item, Purchase } from "../types";
 
@@ -118,6 +119,13 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   Object.keys(groupedByCategory).forEach(cat => groupedByCategory[cat].sort(sortItem));
   const sortedCategoryKeys = Object.keys(groupedByCategory).sort(sortCat);
 
+  // All available categories for pills
+  const allCategories = [...new Set(
+    items
+      .filter(item => calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) !== null)
+      .map(item => item.category || "Sem categoria")
+  )].sort();
+
   // ── Product detail ─────────────────────────────────────────────────────────
   if (selectedItem) {
     const { item, stats } = selectedItem;
@@ -158,7 +166,6 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       marketName, avgPrice: prices.reduce((s, p) => s + p, 0) / prices.length, count: prices.length,
     })).sort((a, b) => a.avgPrice - b.avgPrice);
 
-    // ── Totais no período filtrado ──────────────────────────────────────────
     const totalQtyInPeriod = visibleEntries.reduce((sum: number, e: any) => {
       if (item.type === "bulk") return sum + ((e.totalQty || 0) * factor);
       return sum + e.numPkgs;
@@ -203,18 +210,8 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
         {visibleEntries.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
-            <StatBox
-              label={`Qtd comprada ${periodLabel}`}
-              val={item.type === "bulk"
-                ? `${fmtN(totalQtyInPeriod, 2)} ${du}`
-                : `${fmtN(totalQtyInPeriod, 0)} emb`}
-              color="blue"
-            />
-            <StatBox
-              label={`Total gasto ${periodLabel}`}
-              val={fmt(totalSpentInPeriod)}
-              color="teal"
-            />
+            <StatBox label={`Qtd comprada ${periodLabel}`} val={item.type === "bulk" ? `${fmtN(totalQtyInPeriod, 2)} ${du}` : `${fmtN(totalQtyInPeriod, 0)} emb`} color="blue" />
+            <StatBox label={`Total gasto ${periodLabel}`} val={fmt(totalSpentInPeriod)} color="teal" />
           </div>
         )}
 
@@ -229,14 +226,12 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
         {byMarket.length > 1 && (
           <Card>
-            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">
-              Preço médio por mercado
-            </p>
+            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Preço médio por mercado</p>
             <BarChart data={byMarket.map(m => ({ label: m.marketName, value: item.type === "bulk" ? m.avgPrice / factor : m.avgPrice, sub: `${m.count} compra${m.count > 1 ? "s" : ""}` }))} colorClass="bg-blue-500" formatValue={fmt} />
           </Card>
         )}
 
-        {/* Filtro de data */}
+        {/* Date filter */}
         <Card>
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Filtro por data</p>
@@ -295,13 +290,25 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                   {item.type === "bulk" ? (
                     <>
                       <p className="text-xs text-slate-500 mt-1">{e.numPkgs} emb x {fmtN(+(e.pkgQty * factor).toPrecision(10), 3).replace(/,?0+$/, "")} {du} = {fmtN(+(e.totalQty * factor).toPrecision(10), 3).replace(/,?0+$/, "")} {du}</p>
-                      <p className="text-xs text-teal-500">{fmt(e.pricePerPkg)}/emb ▸ {fmt((e.pricePerUnit || 0) / factor)}/{du}</p>
-                      {e.discountTotal > 0 && <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(e.discountTotal)}</p>}
+                      {e.discountTotal > 0 ? (
+                        <>
+                          <p className="text-xs text-slate-500 line-through">{fmt(e.pricePerPkg)}/emb ▸ {fmt((e.pricePerUnit || 0) / factor)}/{du}</p>
+                          <p className="text-xs text-teal-500 font-semibold">{fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb ▸ {fmt(((e.pricePerPkgAfterDiscount ?? e.pricePerPkg) / (e.pkgQty || 1)) / factor)}/{du} <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                          <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(e.discountTotal)} total · {fmt(e.discountPerPkg)}/emb</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-teal-500">{fmt(e.pricePerPkg)}/emb ▸ {fmt((e.pricePerUnit || 0) / factor)}/{du}</p>
+                      )}
                     </>
                   ) : (
                     <>
                       <p className="text-xs text-slate-500 mt-1">{e.numPkgs} emb x {fmt(e.pricePerPkg)}/emb</p>
-                      {e.discountTotal > 0 && <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(e.discountTotal)}</p>}
+                      {e.discountTotal > 0 ? (
+                        <>
+                          <p className="text-xs text-teal-500 font-semibold">{fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                          <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(e.discountTotal)} total · {fmt(e.discountPerPkg)}/emb</p>
+                        </>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -355,14 +362,28 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                     {it.type === "bulk" ? (
                       <>
                         <p className="text-xs text-slate-500 mt-1">{l.numPkgs} emb x {fmtN(+((l.pkgQty || 0) * factor).toPrecision(10), 3).replace(/,?0+$/, "")} {du2} = {fmtN(+((l.totalQty || 0) * factor).toPrecision(10), 3).replace(/,?0+$/, "")} {du2}</p>
-                        <p className="text-xs text-teal-500">{fmt(l.pricePerPkg)}/emb ▸ {fmt((l.pricePerUnit || 0) / factor)}/{du2}</p>
-                        {l.discountTotal > 0 && <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(l.discountTotal)}</p>}
+                        {l.discountTotal > 0 ? (
+                          <>
+                            <p className="text-xs text-slate-500 line-through">{fmt(l.pricePerPkg)}/emb ▸ {fmt((l.pricePerUnit || 0) / factor)}/{du2}</p>
+                            <p className="text-xs text-teal-500 font-semibold">{fmt(l.pricePerPkgAfterDiscount ?? l.pricePerPkg)}/emb ▸ {fmt(((l.pricePerPkgAfterDiscount ?? l.pricePerPkg) / (l.pkgQty || 1)) / factor)}/{du2} <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                            <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(l.discountTotal)} total · {fmt(l.discountPerPkg)}/emb</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-teal-500">{fmt(l.pricePerPkg)}/emb ▸ {fmt((l.pricePerUnit || 0) / factor)}/{du2}</p>
+                        )}
                       </>
                     ) : (
                       <>
                         <p className="text-xs text-slate-500 mt-1">{l.numPkgs} emb x {fmt(l.pricePerPkg)}/emb</p>
-                        {l.discountTotal > 0 && <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(l.discountTotal)}</p>}
-                        <p className="text-xs text-teal-500">{fmt(l.pricePerInternal || 0)}/{it.pkgUnit?.replace(/s$/, "")}</p>
+                        {l.discountTotal > 0 ? (
+                          <>
+                            <p className="text-xs text-teal-500 font-semibold">{fmt(l.pricePerPkgAfterDiscount ?? l.pricePerPkg)}/emb <span className="text-amber-400 font-normal">(c/ desc)</span></p>
+                            <p className="text-xs text-slate-500">{fmt((l.pricePerPkgAfterDiscount ?? l.pricePerPkg) / (it.pkgSize || 1))}/{it.pkgUnit?.replace(/s$/, "")} c/ desc</p>
+                            <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(l.discountTotal)} total · {fmt(l.discountPerPkg)}/emb</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-teal-500">{fmt(l.pricePerInternal || 0)}/{it.pkgUnit?.replace(/s$/, "")}</p>
+                        )}
                       </>
                     )}
                   </div>
@@ -405,17 +426,19 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
         placeholder={subTab === "products" ? "Buscar produto..." : "Buscar mercado ou data..."}
         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
 
+      {/* Category pills — only in products tab */}
+      {subTab === "products" && (
+        <CategoryPills
+          categories={allCategories}
+          active={filterCat}
+          onChange={setFilterCat}
+          isDark={isDark}
+        />
+      )}
+
       {subTab === "products" && (() => {
-        const catsWithData = [...new Set(items.filter(item => calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) !== null).map(item => item.category).filter(Boolean))];
         return (
           <div className="space-y-2">
-            {catsWithData.length > 1 && (
-              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 appearance-none`}>
-                <option value="">Todas as categorias</option>
-                {catsWithData.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-            )}
             <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
               {([{ id: "freq", label: "Frequência" }, { id: "recent", label: "Recentes" }, { id: "alpha", label: "A–Z" }] as { id: "freq"|"recent"|"alpha"; label: string }[]).map(opt => (
                 <button key={opt.id} onClick={() => setSortBy(opt.id)}
