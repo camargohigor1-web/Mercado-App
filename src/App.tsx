@@ -326,16 +326,7 @@ function AppInner() {
 
             <NavTab id="warehouse" label="Armazém"   icon="warehouse" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
 
-            <button
-              onClick={() => setDrawer(true)}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors relative ${isExtra ? "text-teal-400" : isDark ? "text-slate-700 hover:text-slate-500" : "text-slate-400 hover:text-slate-600"}`}
-            >
-              <Icon name="menu" size={18} />
-              <span className="text-[8px] font-black uppercase tracking-wider leading-none">Mais</span>
-              {isExtra && (
-                <div className="absolute top-2 right-[calc(50%-14px)] w-1.5 h-1.5 rounded-full bg-teal-400" />
-              )}
-            </button>
+            <NavTab id="reports" label="Relatório" icon="chart" active={tab==="reports"} isDark={isDark} onClick={() => navigateTo("reports")} />
 
           </div>
         </nav>
