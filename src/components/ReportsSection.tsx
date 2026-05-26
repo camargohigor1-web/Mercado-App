@@ -2,9 +2,10 @@ import { useState, useMemo } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
-import { Empty, StatBox, BarChart } from "./ui";
+import { Empty, StatBox, BarChart, LineChart } from "./ui";
+import type { LineChartPoint } from "./ui";
 import { CategoryPills } from "./ShoppingListSection";
-import { fmt, fmtN, getLowStockItems, calcStats, getDisplayFactor } from "../utils";
+import { fmt, fmtN, getLowStockItems, calcStats, getDisplayFactor, getDisplayUnit } from "../utils";
 import { MarketComparison } from "./MarketComparison";
 
 interface ReportsSectionProps {
@@ -25,6 +26,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
     return `${initialMonth}-${String(lastDay).padStart(2, "0")}`;
   });
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [expandedPriceItemId, setExpandedPriceItemId] = useState<string | null>(null);
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
   const getItem = (id: string) => items.find(i => i.id === id);
@@ -149,15 +151,37 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
     if (!stats) return [];
     const factor = getDisplayFactor(item);
     const isUnit = item.type === "bulk";
-    const du = isUnit ? (item.displayUnit || item.unit || "") : "emb";
+    const du = getDisplayUnit(item);
     const freq = categoryProductFreqMap[id] || 0;
     const spent = categoryProductSpendMap[id] || 0;
+
+    const allEntries: any[] = [];
+    purchases.forEach(p => {
+      p.lines.forEach(line => {
+        if (line.itemId !== id) return;
+        allEntries.push({ ...line, date: p.date, market: getMkt(p.marketId), purchaseId: p.id });
+      });
+    });
+    allEntries.sort((a, b) => b.date.localeCompare(a.date));
+
+    const priceEvolution: LineChartPoint[] = [...allEntries].reverse().map(e => ({
+      label: new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+      value: isUnit ? (e.pricePerUnit || 0) / factor : e.pricePerPkgAfterDiscount ?? e.pricePerPkg,
+      date: e.date,
+      market: e.market,
+      qty: isUnit ? `${fmtN((e.totalQty || 0) * factor, 2)} ${du}` : `${e.numPkgs} emb`,
+      discount: e.discountTotal > 0 ? `Desc: ${fmt(e.discountTotal)}` : undefined,
+    }));
+
     return [{
       id, item, factor, du, isUnit, freq, spent,
       avg: isUnit ? stats.avgPrice / factor : stats.avgPrice,
       min: isUnit ? stats.minPrice / factor : stats.minPrice,
       last: isUnit ? stats.lastPrice / factor : stats.lastPrice,
+      avgMonthly: isUnit ? stats.avgMonthly * factor : stats.avgMonthly,
       unit: isUnit ? `/${du}` : "/emb",
+      recentEntries: allEntries.slice(0, 4),
+      priceEvolution,
     }];
   }).sort((a, b) => b.spent - a.spent);
 
@@ -214,7 +238,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
           <CategoryPills
             categories={categoriesWithData}
             active={selectedCategory}
-            onChange={setSelectedCategory}
+            onChange={(cat) => { setSelectedCategory(cat); setExpandedPriceItemId(null); }}
             isDark={isDark}
             allLabel="Todas"
           />
@@ -274,18 +298,23 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
                 <p className={lbl}>Análise de preços por produto</p>
                 <div className="space-y-3">
                   {productPriceDetails.map(pd => {
-                    const { id, item, freq, spent, avg, min, last, unit } = pd;
+                    const { id, item, factor, du, isUnit, freq, spent, avg, min, last, avgMonthly, unit, recentEntries, priceEvolution } = pd;
                     const isAboveAvg = last > avg;
                     const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
+                    const isExpanded = expandedPriceItemId === id;
                     return (
-                      <div key={id} onClick={() => onGoToHistoryItem?.(id)}
-                        className={`rounded-2xl border p-4 transition-all ${isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"} ${onGoToHistoryItem ? "cursor-pointer active:scale-[0.99]" : ""}`}>
+                      <div key={id}
+                        className={`rounded-2xl border transition-all overflow-hidden ${isExpanded ? isDark ? "bg-slate-900 border-teal-500/40 shadow-lg shadow-teal-500/5" : "bg-white border-teal-400/50 shadow-lg shadow-teal-500/5" : isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"}`}>
+                        <button type="button" onClick={() => setExpandedPriceItemId(current => current === id ? null : id)}
+                          className="w-full text-left p-4 transition-all active:scale-[0.99]">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div>
                             <p className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{item.name}</p>
                             <p className={sub}>{freq}x comprado · {fmt(spent)} total</p>
                           </div>
-                          {onGoToHistoryItem && <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Histórico <Icon name="chevron" size={9} /></span>}
+                          <span className={`text-[9px] font-bold flex items-center gap-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                            Detalhes <Icon name="chevron" size={9} />
+                          </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div className={`rounded-xl p-2.5 ${isDark ? "bg-teal-500/10" : "bg-teal-50"}`}>
@@ -312,6 +341,64 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
                             <p className={`text-[10px] font-bold ${isDark ? "text-amber-400" : "text-amber-700"}`}>
                               Potencial de economia de {savings.toFixed(0)}% comprando no mínimo histórico
                             </p>
+                          </div>
+                        )}
+                        </button>
+
+                        {isExpanded && (
+                          <div className={`border-t px-4 pb-4 pt-3 space-y-3 animate-fade-slide-up ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
+                                <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Consumo medio/mes</p>
+                                <p className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                                  {isUnit ? `${fmtN(avgMonthly, 2)} ${du}` : `${fmtN(avgMonthly, 1)} emb`}
+                                </p>
+                              </div>
+                              <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
+                                <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Compras</p>
+                                <p className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{priceEvolution.length} registros</p>
+                              </div>
+                            </div>
+
+                            {priceEvolution.length >= 2 && (
+                              <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
+                                <LineChart data={priceEvolution} formatValue={fmt} unit={isUnit ? `R$/${du}` : "R$/emb"} />
+                              </div>
+                            )}
+
+                            {recentEntries.length > 0 && (
+                              <div className="space-y-1.5">
+                                <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                                  Ultimas compras
+                                </p>
+                                {recentEntries.map((e: any, i: number) => (
+                                  <div key={`${e.purchaseId}-${i}`}
+                                    className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border ${isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"}`}>
+                                    <div className="min-w-0">
+                                      <p className={`text-xs font-semibold truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>{e.market}</p>
+                                      <p className="text-[10px] text-slate-500">
+                                        {new Date(e.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" })}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <p className="text-xs font-bold text-teal-400">
+                                        {isUnit
+                                          ? `${fmt((e.pricePerUnit || 0) / factor)}/${du}`
+                                          : `${fmt(e.pricePerPkgAfterDiscount ?? e.pricePerPkg)}/emb`}
+                                      </p>
+                                      {e.discountTotal > 0 && <p className="text-[9px] text-amber-400 font-bold">desc</p>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {onGoToHistoryItem && (
+                              <button onClick={() => onGoToHistoryItem(id)}
+                                className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${isDark ? "bg-teal-500/15 text-teal-400 border border-teal-500/30 hover:bg-teal-500/25" : "bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"}`}>
+                                <Icon name="history" size={13} />Abrir historico completo
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
