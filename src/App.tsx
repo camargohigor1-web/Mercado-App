@@ -7,6 +7,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { AppProvider, useAppContext } from "./context/AppContext";
 import { useToast } from "./hooks/useToast";
 import type { PurchaseLine, Purchase } from "./types";
+import type { ReportsViewState } from "./components/ReportsSection";
 import { SyncIndicator } from "./components/SyncIndicator"; // ◄ IMPORTADO AQUI
 
 // Lazy load de seções pesadas
@@ -42,6 +43,21 @@ function SectionLoading({ isDark }: { isDark: boolean }) {
   );
 }
 
+function getMonthRange(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { dateFrom: `${month}-01`, dateTo: `${month}-${String(lastDay).padStart(2, "0")}` };
+}
+
+const DEFAULT_REPORTS_VIEW_STATE: ReportsViewState = {
+  mainTab: "gastos",
+  dateFrom: "",
+  dateTo: "",
+  selectedCategory: "",
+  expandedPriceItemId: null,
+  productSearch: "",
+};
+
 function AppInner() {
   const { theme, setTheme, list, setList, purchases, setPurchases, warehouse, setWarehouse, items, setItems, markets, categories, setCategories, restoreAll } = useAppContext();
   const { toasts, show: showToast, dismiss } = useToast();
@@ -52,6 +68,7 @@ function AppInner() {
   const [pendingLines,  setPendingLines]  = useState<PurchaseLine[] | null>(null);
   const [pendingKey,    setPendingKey]    = useState(0);
   const [reportsMonth,  setReportsMonth]  = useState<string | undefined>(undefined);
+  const [reportsViewState, setReportsViewState] = useState<ReportsViewState>(DEFAULT_REPORTS_VIEW_STATE);
   const [openPurchaseId, setOpenPurchaseId] = useState<string | undefined>(undefined);
   const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
@@ -96,6 +113,7 @@ function AppInner() {
 
   function handleGoToReports(month: string) {
     setReportsMonth(month);
+    setReportsViewState(prev => ({ ...prev, ...getMonthRange(month), mainTab: "gastos" }));
     setTab("reports");
   }
 
@@ -265,6 +283,8 @@ function AppInner() {
               {tab === "reports" && (
                 <ReportsSection
                   initialMonth={reportsMonth}
+                  viewState={reportsViewState}
+                  onViewStateChange={setReportsViewState}
                   onGoToHistoryItem={handleGoToHistoryItem}
                 />
               )}

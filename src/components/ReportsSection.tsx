@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
@@ -10,33 +11,36 @@ import { MarketComparison } from "./MarketComparison";
 
 interface ReportsSectionProps {
   initialMonth?: string;
+  viewState: ReportsViewState;
+  onViewStateChange: Dispatch<SetStateAction<ReportsViewState>>;
   onGoToHistoryItem?: (itemId: string) => void;
 }
 
-export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSectionProps) {
+export interface ReportsViewState {
+  mainTab: "gastos" | "mercados";
+  dateFrom: string;
+  dateTo: string;
+  selectedCategory: string;
+  expandedPriceItemId: string | null;
+  productSearch: string;
+}
+
+export function ReportsSection({ initialMonth, viewState, onViewStateChange, onGoToHistoryItem }: ReportsSectionProps) {
   const { isDark } = useTheme();
   const { items, markets, purchases, warehouse } = useAppContext();
 
-  const [mainTab, setMainTab] = useState<"gastos" | "mercados">("gastos");
-  const [dateFrom, setDateFrom] = useState(initialMonth ? `${initialMonth}-01` : "");
-  const [dateTo, setDateTo] = useState(() => {
-    if (!initialMonth) return "";
-    const [y, m] = initialMonth.split("-").map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    return `${initialMonth}-${String(lastDay).padStart(2, "0")}`;
-  });
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [expandedPriceItemId, setExpandedPriceItemId] = useState<string | null>(null);
+  const { mainTab, dateFrom, dateTo, selectedCategory, expandedPriceItemId, productSearch } = viewState;
+  const updateViewState = (patch: Partial<ReportsViewState>) => onViewStateChange(prev => ({ ...prev, ...patch }));
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
   const getItem = (id: string) => items.find(i => i.id === id);
   const renderMainTabSwitcher = (activeTab: "gastos" | "mercados") => (
     <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-      <button onClick={() => setMainTab("gastos")}
+      <button onClick={() => updateViewState({ mainTab: "gastos" })}
         className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === "gastos" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
         Gastos
       </button>
-      <button onClick={() => setMainTab("mercados")}
+      <button onClick={() => updateViewState({ mainTab: "mercados" })}
         className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === "mercados" ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
         Mercados
       </button>
@@ -184,6 +188,13 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
       priceEvolution,
     }];
   }).sort((a, b) => b.spent - a.spent);
+  const productSearchQuery = productSearch.trim().toLowerCase();
+  const filteredProductPriceDetails = productSearchQuery
+    ? productPriceDetails.filter(pd =>
+        pd.item.name.toLowerCase().includes(productSearchQuery) ||
+        (pd.item.category || "").toLowerCase().includes(productSearchQuery)
+      )
+    : productPriceDetails;
 
   const recentCategoryEntries = [...categoryEntries].sort((a, b) => b.purchase.date.localeCompare(a.purchase.date)).slice(0, 10);
   const categoryAvgPerProduct = categoryProductIds.size > 0 ? categoryTotalSpent / categoryProductIds.size : 0;
@@ -219,10 +230,9 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
               })();
               return (
                 <button key={preset.label} onClick={() => {
-                  if (preset.days === 0) { setDateFrom(""); setDateTo(""); return; }
+                  if (preset.days === 0) { updateViewState({ dateFrom: "", dateTo: "" }); return; }
                   const from = new Date(); from.setDate(from.getDate() - preset.days + 1);
-                  setDateFrom(from.toISOString().slice(0, 10));
-                  setDateTo(new Date().toISOString().slice(0, 10));
+                  updateViewState({ dateFrom: from.toISOString().slice(0, 10), dateTo: new Date().toISOString().slice(0, 10) });
                 }}
                   className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${isActive ? "bg-teal-500 text-white shadow-sm" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
                   {preset.label}
@@ -238,19 +248,42 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
           <CategoryPills
             categories={categoriesWithData}
             active={selectedCategory}
-            onChange={(cat) => { setSelectedCategory(cat); setExpandedPriceItemId(null); }}
+            onChange={(cat) => updateViewState({ selectedCategory: cat, expandedPriceItemId: null, productSearch: "" })}
             isDark={isDark}
             allLabel="Todas"
           />
         </div>
 
+        {categoryMode && (
+          <div className="flex flex-col gap-1 mb-3">
+            <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Produto</label>
+            <div className="relative">
+              <input
+                value={productSearch}
+                onChange={e => updateViewState({ productSearch: e.target.value })}
+                placeholder="Buscar produto..."
+                className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`}
+              />
+              <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-700" : "text-slate-400"}`}>
+                <Icon name="search" size={13} />
+              </span>
+              {productSearch && (
+                <button onClick={() => updateViewState({ productSearch: "" })}
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg ${isDark ? "text-slate-600 hover:text-slate-300 hover:bg-white/5" : "text-slate-400 hover:text-slate-700 hover:bg-black/5"}`}>
+                  <Icon name="x" size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Custom date range */}
         <div className="flex flex-col gap-1 mb-1">
           <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Período personalizado</label>
           <div className="grid grid-cols-2 gap-3">
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            <input type="date" value={dateFrom} onChange={e => updateViewState({ dateFrom: e.target.value })}
               className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            <input type="date" value={dateTo} onChange={e => updateViewState({ dateTo: e.target.value })}
               className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
           </div>
         </div>
@@ -263,7 +296,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
                 : `${filtered.length} compra${filtered.length !== 1 ? "s" : ""} no período`}
             </p>
             {hasFilter && (
-              <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+              <button onClick={() => updateViewState({ dateFrom: "", dateTo: "" })}
                 className={`text-[10px] font-bold flex items-center gap-1 ${isDark ? "text-teal-400 hover:text-teal-300" : "text-teal-600 hover:text-teal-700"}`}>
                 <Icon name="x" size={10} />Limpar datas
               </button>
@@ -296,8 +329,13 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
             {productPriceDetails.length > 0 && (
               <div>
                 <p className={lbl}>Análise de preços por produto</p>
+                {filteredProductPriceDetails.length === 0 ? (
+                  <div className={`rounded-2xl border px-4 py-6 text-center ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"}`}>
+                    <p className={`text-xs font-bold ${isDark ? "text-slate-500" : "text-slate-400"}`}>Nenhum produto encontrado</p>
+                  </div>
+                ) : (
                 <div className="space-y-3">
-                  {productPriceDetails.map(pd => {
+                  {filteredProductPriceDetails.map(pd => {
                     const { id, item, factor, du, isUnit, freq, spent, avg, min, last, avgMonthly, unit, recentEntries, priceEvolution } = pd;
                     const isAboveAvg = last > avg;
                     const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
@@ -305,7 +343,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
                     return (
                       <div key={id}
                         className={`rounded-2xl border transition-all overflow-hidden ${isExpanded ? isDark ? "bg-slate-900 border-teal-500/40 shadow-lg shadow-teal-500/5" : "bg-white border-teal-400/50 shadow-lg shadow-teal-500/5" : isDark ? "bg-slate-900/80 border-white/5 hover:border-teal-500/30" : "bg-white border-black/6 hover:border-teal-300"}`}>
-                        <button type="button" onClick={() => setExpandedPriceItemId(current => current === id ? null : id)}
+                        <button type="button" onClick={() => onViewStateChange(current => ({ ...current, expandedPriceItemId: current.expandedPriceItemId === id ? null : id }))}
                           className="w-full text-left p-4 transition-all active:scale-[0.99]">
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div>
@@ -405,6 +443,7 @@ export function ReportsSection({ initialMonth, onGoToHistoryItem }: ReportsSecti
                     );
                   })}
                 </div>
+                )}
               </div>
             )}
 
