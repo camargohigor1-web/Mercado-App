@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
-import { Btn, Inp, Sel, Modal, Card, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
+import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
 import type { Item, Purchase, PurchaseLine, WarehouseItem } from "../types";
 
@@ -16,9 +16,10 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const { isDark } = useTheme();
   const { items, setItems, markets, purchases, setPurchases, warehouse, setWarehouse, categories, setCategories } = useAppContext();
 
-  const [view, setView] = useState<"list" | "new" | "detail">(initialLines ? "new" : "new");
+  const [view, setView] = useState<"list" | "new" | "detail">(initialLines ? "new" : "list");
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
+  const [purchaseSearch, setPurchaseSearch] = useState("");
   const [form, setForm] = useState<{ marketId: string; date: string; note: string; lines: PurchaseLine[] }>({
     marketId: markets[0]?.id || "",
     date: new Date().toISOString().slice(0, 10),
@@ -219,8 +220,8 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === sorted.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(sorted.map(p => p.id)));
+    if (selectedIds.size === filteredPurchases.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredPurchases.map(p => p.id)));
   }
 
   // ── lineDisplay: shows original + post-discount prices clearly ──────────────
@@ -269,6 +270,24 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const discountVal = parseFloat(lf.discount) || 0;
   const canPreview  = lf.numPkgs && lf.pricePerPkg && +lf.numPkgs > 0 && +lf.pricePerPkg > 0 && (!isBulk || (lf.pkgQty && +lf.pkgQty > 0));
   const sorted      = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
+  const purchaseSearchQuery = purchaseSearch.trim().toLowerCase();
+  const filteredPurchases = purchaseSearchQuery
+    ? sorted.filter(p => {
+        const marketName = getMkt(p.marketId).toLowerCase();
+        const productNames = p.lines
+          .map(l => getItem(l.itemId)?.name || "")
+          .join(" ")
+          .toLowerCase();
+        const brands = p.lines.map(l => l.brand || "").join(" ").toLowerCase();
+        return (
+          marketName.includes(purchaseSearchQuery) ||
+          p.date.includes(purchaseSearchQuery) ||
+          (p.note || "").toLowerCase().includes(purchaseSearchQuery) ||
+          productNames.includes(purchaseSearchQuery) ||
+          brands.includes(purchaseSearchQuery)
+        );
+      })
+    : sorted;
   const marketLastPurchase = purchases.reduce<Record<string, string>>((acc, p) => {
     if (!acc[p.marketId] || p.date > acc[p.marketId]) acc[p.marketId] = p.date;
     return acc;
@@ -568,14 +587,34 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
       {selecting && sorted.length > 0 && (
         <div className={`flex items-center justify-between px-3 py-2 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl`}>
-          <p className="text-xs text-slate-500">{selectedIds.size} de {sorted.length} selecionadas</p>
+          <p className="text-xs text-slate-500">{selectedIds.size} de {filteredPurchases.length} selecionadas</p>
           <button onClick={toggleSelectAll} className="text-xs text-teal-400 font-bold hover:text-teal-300">
-            {selectedIds.size === sorted.length ? "Desmarcar todas" : "Selecionar todas"}
+            {selectedIds.size === filteredPurchases.length ? "Desmarcar todas" : "Selecionar todas"}
           </button>
         </div>
       )}
 
       {markets.length === 0 && <InfoBox>Cadastre ao menos um mercado antes de registrar uma compra.</InfoBox>}
+
+      {sorted.length > 0 && (
+        <div className="relative">
+          <input
+            value={purchaseSearch}
+            onChange={e => setPurchaseSearch(e.target.value)}
+            placeholder="Buscar por mercado, data, produto..."
+            className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`}
+          />
+          <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-700" : "text-slate-400"}`}>
+            <Icon name="search" size={13} />
+          </span>
+          {purchaseSearch && (
+            <button onClick={() => setPurchaseSearch("")}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg ${isDark ? "text-slate-600 hover:text-slate-300 hover:bg-white/5" : "text-slate-400 hover:text-slate-700 hover:bg-black/5"}`}>
+              <Icon name="x" size={12} />
+            </button>
+          )}
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center text-center py-12 gap-4 px-4">
@@ -592,9 +631,11 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
             Registrar primeira compra
           </button>
         </div>
+      ) : filteredPurchases.length === 0 ? (
+        <Empty icon="cart" title="Nenhuma compra encontrada" />
       ) : (
         <div className="space-y-2">
-          {sorted.map(p => (
+          {filteredPurchases.map(p => (
             <div key={p.id} className="flex items-center gap-2">
               {selecting && (
                 <button onClick={() => toggleSelect(p.id)}

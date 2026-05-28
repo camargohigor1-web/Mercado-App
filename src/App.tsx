@@ -26,7 +26,7 @@ const EXTRA_TABS = ["purchases", "markets", "backup", "reports", "items"];
 const TITLES: Record<string, string> = {
   home:      "Início",
   shopping:  "Lista de Compras",
-  purchases: "Nova Compra",
+  purchases: "Compras",
   history:   "Histórico",
   warehouse: "Armazém",
   items:     "Produtos",

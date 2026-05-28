@@ -78,8 +78,20 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
   const sortedPurchases = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
   const filteredPurchases = sortedPurchases.filter(p => {
+    const query = search.toLowerCase();
     const mktName = getMkt(p.marketId).toLowerCase();
-    return mktName.includes(search.toLowerCase()) || p.date.includes(search);
+    const productNames = p.lines
+      .map(l => getItem(l.itemId)?.name || "")
+      .join(" ")
+      .toLowerCase();
+    const brands = p.lines.map(l => l.brand || "").join(" ").toLowerCase();
+    return (
+      mktName.includes(query) ||
+      p.date.includes(query) ||
+      (p.note || "").toLowerCase().includes(query) ||
+      productNames.includes(query) ||
+      brands.includes(query)
+    );
   });
 
   const groupedByDate: Record<string, Purchase[]> = {};

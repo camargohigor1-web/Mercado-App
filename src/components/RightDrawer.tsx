@@ -12,7 +12,7 @@ interface RightDrawerProps {
 
 // Tabs exclusivos do drawer (não estão na bottom nav)
 const drawerTabs = [
-  { id: "purchases", label: "Nova Compra",  icon: "cart",    desc: "Registre uma nova compra" },
+  { id: "purchases", label: "Compras",      icon: "cart",    desc: "Veja e registre compras" },
   { id: "items",     label: "Produtos",     icon: "package", desc: "Cadastre e edite produtos" },
   { id: "markets",   label: "Mercados",     icon: "store",   desc: "Gerencie supermercados" },
   { id: "reports",   label: "Relatório",    icon: "chart",   desc: "Gráficos e estatísticas" },
