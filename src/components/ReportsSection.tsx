@@ -151,7 +151,12 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
     const item = getItem(id);
     if (!item) return [];
     const w = warehouse.find(w2 => w2.itemId === id);
-    const stats = calcStats(id, items, purchases, w?.entries || []);
+    const filteredWarehouseEntries = (w?.entries || []).filter(e => {
+      if (dateFrom && e.date < dateFrom) return false;
+      if (dateTo && e.date > dateTo) return false;
+      return true;
+    });
+    const stats = calcStats(id, items, filtered, filteredWarehouseEntries);
     if (!stats) return [];
     const factor = getDisplayFactor(item);
     const isUnit = item.type === "bulk";
@@ -160,7 +165,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
     const spent = categoryProductSpendMap[id] || 0;
 
     const allEntries: any[] = [];
-    purchases.forEach(p => {
+    filtered.forEach(p => {
       p.lines.forEach(line => {
         if (line.itemId !== id) return;
         allEntries.push({ ...line, date: p.date, market: getMkt(p.marketId), purchaseId: p.id });

@@ -128,8 +128,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
   // ── Product detail ─────────────────────────────────────────────────────────
   if (selectedItem) {
-    const { item, stats } = selectedItem;
-    if (!stats) return null;
+    const { item } = selectedItem;
     const factor = getDisplayFactor(item);
     const du = getDisplayUnit(item);
 
@@ -147,6 +146,18 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       if (historyDateTo && e.date > historyDateTo) return false;
       return true;
     });
+
+    const purchasesInPeriod = purchases.filter(p => {
+      if (historyDateFrom && p.date < historyDateFrom) return false;
+      if (historyDateTo && p.date > historyDateTo) return false;
+      return p.lines.some(l => l.itemId === item.id);
+    });
+    const warehouseEntriesInPeriod = (warehouse.find(w => w.itemId === item.id)?.entries ?? []).filter(e => {
+      if (historyDateFrom && e.date < historyDateFrom) return false;
+      if (historyDateTo && e.date > historyDateTo) return false;
+      return true;
+    });
+    const periodStats = calcStats(item.id, items, purchasesInPeriod, warehouseEntriesInPeriod);
 
     const chronoEntries = [...visibleEntries].sort((a, b) => a.date.localeCompare(b.date));
     const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
@@ -192,21 +203,21 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
           </div>
         </div>
 
-        {item.type === "bulk" ? (
+        {periodStats && item.type === "bulk" ? (
           <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Consumo médio/mês" val={`${fmtN(stats.avgMonthly * factor, 2)} ${du}`} />
-            <StatBox label={`Preço médio/${du}`} val={fmt(stats.avgPrice / factor)} color="green" />
-            <StatBox label={`Menor preço/${du}`} val={fmt(stats.minPrice / factor)} color="teal" />
-            <StatBox label={`Último preço/${du}`} val={fmt(stats.lastPrice / factor)} color="blue" />
+            <StatBox label="Consumo médio/mês" val={`${fmtN(periodStats.avgMonthly * factor, 2)} ${du}`} />
+            <StatBox label={`Preço médio/${du}`} val={fmt(periodStats.avgPrice / factor)} color="green" />
+            <StatBox label={`Menor preço/${du}`} val={fmt(periodStats.minPrice / factor)} color="teal" />
+            <StatBox label={`Último preço/${du}`} val={fmt(periodStats.lastPrice / factor)} color="blue" />
           </div>
-        ) : (
+        ) : periodStats ? (
           <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Consumo médio/mês" val={`${fmtN(stats.avgMonthly, 1)} emb`} />
-            <StatBox label="Preço médio/emb" val={fmt(stats.avgPrice)} color="green" />
-            <StatBox label="Menor preço/emb" val={fmt(stats.minPrice)} color="teal" />
-            <StatBox label="Último preço/emb" val={fmt(stats.lastPrice)} color="blue" />
+            <StatBox label="Consumo médio/mês" val={`${fmtN(periodStats.avgMonthly, 1)} emb`} />
+            <StatBox label="Preço médio/emb" val={fmt(periodStats.avgPrice)} color="green" />
+            <StatBox label="Menor preço/emb" val={fmt(periodStats.minPrice)} color="teal" />
+            <StatBox label="Último preço/emb" val={fmt(periodStats.lastPrice)} color="blue" />
           </div>
-        )}
+        ) : null}
 
         {visibleEntries.length > 0 && (
           <div className="grid grid-cols-2 gap-2">

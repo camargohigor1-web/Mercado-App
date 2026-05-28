@@ -335,6 +335,8 @@ export function calcStats(
     });
   });
 
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+
   // Calcula avgMonthly: tenta linha do tempo primeiro, usa fallback se necessário
   const timelineAvg = calcAvgMonthlyFromTimeline(itemId, item, purchases, warehouseEntries);
   const avgMonthly  = timelineAvg !== null
