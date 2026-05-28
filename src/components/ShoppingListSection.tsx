@@ -297,10 +297,14 @@ export function ShoppingListSection({
   // plan
   const [planSearch, setPlanSearch] = useState("");
   const [filterCatPlan, setFilterCatPlan] = useState("");
+  const [inListSearch, setInListSearch] = useState("");
+  const [filterCatInList, setFilterCatInList] = useState("");
+  const [inListSort, setInListSort] = useState<"category" | "alpha" | "added">("category");
 
   // market
   const [marketSearch, setMarketSearch] = useState("");
   const [filterCatMarket, setFilterCatMarket] = useState("");
+  const [marketSort, setMarketSort] = useState<"category" | "alpha">("category");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
@@ -407,25 +411,51 @@ export function ShoppingListSection({
     () => [...new Set(listFull.map((l) => l.item?.category || "Sem categoria"))].sort(),
     [listFull]
   );
+  const filteredInList = useMemo(() => {
+    const q = inListSearch.toLowerCase();
+    const filtered = listFull.filter((entry) => {
+      const item = entry.item!;
+      const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.category || "").toLowerCase().includes(q);
+      const matchCat = !filterCatInList || (item.category || "Sem categoria") === filterCatInList;
+      return matchSearch && matchCat;
+    });
+
+    if (inListSort === "alpha") {
+      return [...filtered].sort((a, b) => a.item!.name.localeCompare(b.item!.name));
+    }
+    if (inListSort === "category") {
+      return [...filtered].sort((a, b) => {
+        const catCmp = (a.item!.category || "Sem categoria").localeCompare(b.item!.category || "Sem categoria");
+        return catCmp !== 0 ? catCmp : a.item!.name.localeCompare(b.item!.name);
+      });
+    }
+    return filtered;
+  }, [listFull, inListSearch, filterCatInList, inListSort]);
+
   const groupedInList = useMemo(() => {
-    const g: Record<string, typeof listFull> = {};
-    listFull.forEach((entry) => {
-      const cat = entry.item?.category || "Sem categoria";
+    const g: Record<string, typeof filteredInList> = {};
+    filteredInList.forEach((entry) => {
+      const cat = inListSort === "category" ? entry.item?.category || "Sem categoria" : "Produtos";
       if (!g[cat]) g[cat] = [];
       g[cat].push(entry);
     });
     return g;
-  }, [listFull]);
+  }, [filteredInList, inListSort]);
 
   // Market filtered + grouped
   const marketFiltered = useMemo(() => {
     const q = marketSearch.toLowerCase();
-    return listFull.filter((l) => {
+    const filtered = listFull.filter((l) => {
       const matchSearch = !q || l.item!.name.toLowerCase().includes(q) || (l.item!.category || "").toLowerCase().includes(q);
-      const matchCat = !filterCatMarket || l.item!.category === filterCatMarket;
+      const matchCat = !filterCatMarket || (l.item!.category || "Sem categoria") === filterCatMarket;
       return matchSearch && matchCat;
     });
-  }, [listFull, marketSearch, filterCatMarket]);
+    return [...filtered].sort((a, b) => {
+      if (marketSort === "alpha") return a.item!.name.localeCompare(b.item!.name);
+      const catCmp = (a.item!.category || "Sem categoria").localeCompare(b.item!.category || "Sem categoria");
+      return catCmp !== 0 ? catCmp : a.item!.name.localeCompare(b.item!.name);
+    });
+  }, [listFull, marketSearch, filterCatMarket, marketSort]);
 
   const pendingList = useMemo(() => marketFiltered.filter((l) => !l.done), [marketFiltered]);
   const doneList    = useMemo(() => marketFiltered.filter((l) => l.done), [marketFiltered]);
@@ -438,12 +468,12 @@ export function ShoppingListSection({
   const groupedPending = useMemo(() => {
     const g: Record<string, typeof pendingList> = {};
     pendingList.forEach((l) => {
-      const cat = l.item?.category || "Sem categoria";
+      const cat = marketSort === "category" ? l.item?.category || "Sem categoria" : "Produtos";
       if (!g[cat]) g[cat] = [];
       g[cat].push(l);
     });
     return g;
-  }, [pendingList]);
+  }, [pendingList, marketSort]);
 
   const quickAddFiltered = useMemo(() => {
     const q = quickSearch.toLowerCase();
@@ -780,9 +810,45 @@ export function ShoppingListSection({
 
               {/* Category pills for in-list items */}
               <div className="mb-3">
-                <CategoryPills categories={inListCategories} active={""} onChange={() => {}} isDark={isDark} allLabel="Tudo" />
+                <div className="relative mb-3">
+                  <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                    <Icon name="search" size={14} />
+                  </div>
+                  <input value={inListSearch} onChange={(e) => setInListSearch(e.target.value)}
+                    placeholder="Buscar produto na lista…"
+                    className={`w-full pl-8 ${inListSearch ? "pr-9" : "pr-3"} py-2 rounded-xl border text-sm focus:outline-none focus:border-teal-500 transition-all ${
+                      isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600"
+                             : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`} />
+                  {inListSearch && (
+                    <button onClick={() => setInListSearch("")}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-600 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>
+                      <Icon name="x" size={13} />
+                    </button>
+                  )}
+                </div>
+                <div className="mb-3">
+                  <CategoryPills categories={inListCategories} active={filterCatInList} onChange={setFilterCatInList} isDark={isDark} allLabel="Tudo" />
+                </div>
+                <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
+                  {([
+                    { id: "category", label: "Categoria" },
+                    { id: "alpha", label: "A-Z" },
+                    { id: "added", label: "Adição" },
+                  ] as { id: "category" | "alpha" | "added"; label: string }[]).map(opt => (
+                    <button key={opt.id} onClick={() => setInListSort(opt.id)}
+                      className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${
+                        inListSort === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
+                      }`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {filteredInList.length === 0 ? (
+                <Empty icon="search" title={`Nenhum resultado para "${inListSearch || filterCatInList}"`} />
+              ) : (
               <div className="space-y-4">
                 {Object.entries(groupedInList).map(([cat, catEntries]) => (
                   <div key={cat}>
@@ -833,6 +899,7 @@ export function ShoppingListSection({
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
         </>
@@ -894,6 +961,20 @@ export function ShoppingListSection({
 
               {/* Category pills */}
               <CategoryPills categories={marketCategories} active={filterCatMarket} onChange={setFilterCatMarket} isDark={isDark} />
+
+              <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
+                {([
+                  { id: "category", label: "Por categoria" },
+                  { id: "alpha", label: "A-Z" },
+                ] as { id: "category" | "alpha"; label: string }[]).map(opt => (
+                  <button key={opt.id} onClick={() => setMarketSort(opt.id)}
+                    className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${
+                      marketSort === opt.id ? "bg-blue-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
+                    }`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
 
               {/* Pending */}
               {pendingList.length === 0 && marketSearch ? (
