@@ -4,7 +4,18 @@ import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
-import type { Item, Purchase, PurchaseLine, WarehouseItem } from "../types";
+import type { Item, Market, Purchase, PurchaseLine, WarehouseItem } from "../types";
+
+interface ImportedItem extends Omit<Item, "type"> {
+  type: string;
+}
+
+interface PurchaseImportFile {
+  _type?: string;
+  purchases: Purchase[];
+  items: ImportedItem[];
+  markets: Market[];
+}
 
 interface PurchasesSectionProps {
   initialLines?: PurchaseLine[];
@@ -14,9 +25,9 @@ interface PurchasesSectionProps {
 
 export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSaved }: PurchasesSectionProps) {
   const { isDark } = useTheme();
-  const { items, setItems, markets, purchases, setPurchases, warehouse, setWarehouse, categories, setCategories } = useAppContext();
+  const { items, setItems, markets, setMarkets, purchases, setPurchases, warehouse, setWarehouse, categories, setCategories } = useAppContext();
 
-  const [view, setView] = useState<"list" | "new" | "detail">(initialLines ? "new" : "list");
+  const [view, setView] = useState<"list" | "new" | "detail" | "import">(initialLines ? "new" : "list");
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
   const [purchaseSearch, setPurchaseSearch] = useState("");
@@ -38,6 +49,11 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [importedData, setImportedData] = useState<PurchaseImportFile | null>(null);
+  const [importedFileName, setImportedFileName] = useState("");
+  const [importError, setImportError] = useState("");
+  const [importedEntityIds, setImportedEntityIds] = useState({ items: [] as string[], markets: [] as string[], categories: [] as string[] });
 
   useEffect(() => {
     if (initialLines && initialLines.length > 0) {
@@ -174,6 +190,16 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
       if (onCreatedFromList) onCreatedFromList();
       else onPurchaseSaved?.();
     }
+    setImportedEntityIds({ items: [], markets: [], categories: [] });
+    setView("list");
+  }
+
+  function cancelPurchaseForm() {
+    if (importedEntityIds.items.length) setItems(items.filter(item => !importedEntityIds.items.includes(item.id)));
+    if (importedEntityIds.markets.length) setMarkets(markets.filter(market => !importedEntityIds.markets.includes(market.id)));
+    if (importedEntityIds.categories.length) setCategories(importedEntityIds.categories);
+    setImportedEntityIds({ items: [], markets: [], categories: [] });
+    setEditingPurchase(null);
     setView("list");
   }
 
@@ -222,6 +248,102 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   function toggleSelectAll() {
     if (selectedIds.size === filteredPurchases.length) setSelectedIds(new Set());
     else setSelectedIds(new Set(filteredPurchases.map(p => p.id)));
+  }
+
+  function normalizeName(value: string) {
+    return value.trim().toLocaleLowerCase("pt-BR");
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = event => {
+      try {
+        const raw = JSON.parse(event.target?.result as string) as Partial<PurchaseImportFile>;
+        if (!Array.isArray(raw.purchases) || !Array.isArray(raw.items) || !Array.isArray(raw.markets)) {
+          throw new Error("O arquivo precisa conter compras, produtos e mercados.");
+        }
+        if (!raw.purchases.every(p => p && p.date && Array.isArray(p.lines))) {
+          throw new Error("Há compras incompletas no arquivo.");
+        }
+        setImportedData(raw as PurchaseImportFile);
+        setImportedFileName(file.name);
+        setImportError("");
+      } catch (error) {
+        setImportedData(null);
+        setImportError(error instanceof Error ? error.message : "Não foi possível ler o arquivo JSON.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function openImportedPurchase(purchase: Purchase) {
+    if (!importedData) return;
+    const nextItems = [...items];
+    const nextMarkets = [...markets];
+    const itemIdMap = new Map<string, string>();
+    const marketIdMap = new Map<string, string>();
+    const createdItemIds: string[] = [];
+    const createdMarketIds: string[] = [];
+
+    for (const imported of importedData.items) {
+      if (!imported?.id || !imported.name || !imported.type) continue;
+      const existing = nextItems.find(item => item.id === imported.id)
+        || nextItems.find(item => normalizeName(item.name) === normalizeName(imported.name));
+      if (existing) itemIdMap.set(imported.id, existing.id);
+      else {
+        const type = imported.type === "weight" ? "bulk" : imported.type;
+        if (type !== "bulk" && type !== "packaged") continue;
+        const created: Item = {
+          ...imported,
+          id: uid(),
+          type,
+          unit: type === "bulk" ? imported.unit || "kg" : undefined,
+          displayUnit: type === "bulk" ? imported.displayUnit || imported.unit || "kg" : undefined,
+          pkgSize: type === "packaged" ? imported.pkgSize || 1 : undefined,
+          pkgUnit: type === "packaged" ? imported.pkgUnit || "un" : undefined,
+        };
+        nextItems.push(created);
+        itemIdMap.set(imported.id, created.id);
+        createdItemIds.push(created.id);
+      }
+    }
+
+    for (const imported of importedData.markets) {
+      if (!imported?.id || !imported.name) continue;
+      const existing = nextMarkets.find(market => market.id === imported.id)
+        || nextMarkets.find(market => normalizeName(market.name) === normalizeName(imported.name));
+      if (existing) marketIdMap.set(imported.id, existing.id);
+      else {
+        const created = { ...imported, id: uid() };
+        nextMarkets.push(created);
+        marketIdMap.set(imported.id, created.id);
+        createdMarketIds.push(created.id);
+      }
+    }
+
+    const marketId = marketIdMap.get(purchase.marketId);
+    const lines = purchase.lines.map(line => ({ ...line, itemId: itemIdMap.get(line.itemId) || "" }));
+    if (!marketId || lines.some(line => !line.itemId)) {
+      setImportError("Esta compra referencia um produto ou mercado que não está presente no arquivo.");
+      return;
+    }
+
+    const importedCategories = nextItems.map(item => item.category).filter(Boolean);
+    const nextCategories = [...categories];
+    importedCategories.forEach(category => { if (!nextCategories.includes(category)) nextCategories.push(category); });
+    if (nextItems.length !== items.length) setItems(nextItems);
+    if (nextMarkets.length !== markets.length) setMarkets(nextMarkets);
+    if (nextCategories.length !== categories.length) setCategories(nextCategories);
+
+    setForm({ marketId, date: purchase.date, note: purchase.note || "", lines });
+    setEditingPurchase(null);
+    setImportedEntityIds({ items: createdItemIds, markets: createdMarketIds, categories: [...categories] });
+    setImportedData(null);
+    setImportError("");
+    setView("new");
   }
 
   // ── lineDisplay: shows original + post-discount prices clearly ──────────────
@@ -368,7 +490,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     return (
       <div className="space-y-4 pb-40">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setView("list"); setEditingPurchase(null); }}
+          <button onClick={cancelPurchaseForm}
             className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}>
             <Icon name="back" size={20} />
           </button>
@@ -566,11 +688,70 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     );
   }
 
+  // ── Import view ───────────────────────────────────────────────────────────
+  if (view === "import") {
+    return (
+      <div className="space-y-4 animate-slide-in-right">
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setImportedData(null); setImportError(""); setView("list"); }}
+            className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}>
+            <Icon name="back" size={20} />
+          </button>
+          <div>
+            <h2 className={`text-base font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>Importar compras</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Selecione um JSON exportado ou gerado pela IA.</p>
+          </div>
+        </div>
+
+        <input ref={importFileRef} type="file" accept=".json,application/json" onChange={handleImportFile} className="hidden" />
+        <Card>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-500/15 text-teal-400 flex items-center justify-center flex-shrink-0"><Icon name="upload" size={18} /></div>
+            <div className="min-w-0 flex-1">
+              <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>Arquivo de compras</p>
+              <p className="text-slate-500 text-xs mt-0.5 truncate">{importedFileName || "Nenhum arquivo selecionado"}</p>
+            </div>
+            <Btn onClick={() => importFileRef.current?.click()} variant="outline" size="sm">Selecionar</Btn>
+          </div>
+        </Card>
+
+        {importError && <InfoBox color="amber">{importError}</InfoBox>}
+
+        {importedData && (
+          <div className="space-y-2">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500">Compras encontradas ({importedData.purchases.length})</p>
+            <InfoBox color="blue">Escolha uma compra para revisar. Nada será lançado no estoque até você salvar a compra.</InfoBox>
+            {importedData.purchases.map((purchase, index) => {
+              const marketName = importedData.markets.find(market => market.id === purchase.marketId)?.name || "Mercado não identificado";
+              const total = Number.isFinite(purchase.total) ? purchase.total : purchase.lines.reduce((sum, line) => sum + (Number(line.total) || 0), 0);
+              return (
+                <Card key={`${purchase.id || "purchase"}-${index}`} onClick={() => openImportedPurchase(purchase)}>
+                  <div className="flex justify-between items-center gap-3">
+                    <div>
+                      <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>{marketName}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">{purchase.date} · {purchase.lines.length} {purchase.lines.length === 1 ? "item" : "itens"}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-teal-400">
+                      <span className="font-black">{fmt(total)}</span><Icon name="chevron" size={15} />
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ── List view ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-2">
+          <Btn onClick={() => { setImportError(""); setView("import"); }} variant="outline" size="sm">
+            <Icon name="upload" size={13} />Importar
+          </Btn>
           {sorted.length > 0 && (
             <Btn onClick={() => { setSelecting(!selecting); setSelectedIds(new Set()); }} variant={selecting ? "success" : "outline"} size="sm">
               <Icon name="download" size={13} />{selecting ? "Cancelar" : "Exportar"}
