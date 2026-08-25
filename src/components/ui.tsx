@@ -83,12 +83,14 @@ export function Sel({ label, value, onChange, options, placeholder, className = 
 interface ProductSearchProps {
   label?: string; value: string; onChange: (v: string) => void;
   items: Item[]; required?: boolean; onCreateMissing?: (query: string) => void;
+  autoFocus?: boolean;
 }
 
-export function ProductSearch({ label, value, onChange, items, required, onCreateMissing }: ProductSearchProps) {
+export function ProductSearch({ label, value, onChange, items, required, onCreateMissing, autoFocus = false }: ProductSearchProps) {
   const { isDark } = useContext(ThemeCtx);
   const [query, setQuery] = useState("");
   const [open, setOpen]   = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const selectedItem = items.find(i => i.id === value);
   const cleanQuery = query.trim();
@@ -104,20 +106,38 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
     (i.category || "").toLowerCase().includes(query.toLowerCase())
   ).slice(0, 20);
 
-  function select(item: Item) { onChange(item.id); setQuery(""); setOpen(false); }
+  function select(item: Item) { onChange(item.id); setQuery(""); setOpen(false); setActiveIndex(0); }
   function createMissing() { if (!cleanQuery || !onCreateMissing) return; onCreateMissing(cleanQuery); setOpen(false); }
+  const canCreate = Boolean(onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()));
+  const optionCount = filtered.length + (canCreate ? 1 : 0);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") { setOpen(false); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setOpen(true);
+      if (optionCount) setActiveIndex(current => (current + (e.key === "ArrowDown" ? 1 : -1) + optionCount) % optionCount);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!open) { setOpen(true); return; }
+      if (filtered[activeIndex]) select(filtered[activeIndex]);
+      else if (canCreate) createMissing();
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
       {label && <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
       {selectedItem && !open ? (
-        <div className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
+        <button type="button" className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-teal-500/40`}
           onClick={() => { setOpen(true); setQuery(""); }}>
           <span>{selectedItem.name} <span className="text-slate-500 text-xs">({selectedItem.type === "bulk" ? selectedItem.displayUnit || selectedItem.unit : `${selectedItem.pkgSize}${selectedItem.pkgUnit}/emb`})</span></span>
           <span className="text-slate-500 text-xs">trocar</span>
-        </div>
+        </button>
       ) : (
-        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        <input autoFocus={autoFocus || open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
           placeholder={selectedItem ? selectedItem.name : "Digite para buscar produto..."}
           className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
@@ -128,7 +148,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
               <p className="text-slate-500 text-xs text-center py-2">Nenhum produto encontrado</p>
               {onCreateMissing && cleanQuery && (
                 <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
-                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
+                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${activeIndex === 0 ? (isDark ? "bg-slate-800" : "bg-teal-50") : ""} ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
                   <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
                   <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
                 </button>
@@ -138,7 +158,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
             <>
               {filtered.map(item => (
                 <button key={item.id} onMouseDown={() => select(item)}
-                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(item) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "bulk" ? "bg-teal-500/20 text-teal-400" : "bg-amber-500/20 text-amber-400"}`}>
                     <Icon name={item.type === "bulk" ? "scale" : "box"} size={11} />
                   </div>
@@ -150,7 +170,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
               ))}
               {onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()) && (
                 <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
-                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
+                  className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${activeIndex === filtered.length ? (isDark ? "bg-slate-800" : "bg-teal-50") : ""} ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
                   <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
                   <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
                 </button>
@@ -173,6 +193,7 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
   const { isDark } = useContext(ThemeCtx);
   const [query, setQuery] = useState("");
   const [open, setOpen]   = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const selectedMarket = markets.find(m => m.id === value);
 
@@ -187,19 +208,32 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
     (m.description || "").toLowerCase().includes(query.toLowerCase())
   ).slice(0, 20);
 
-  function select(market: Market) { onChange(market.id); setQuery(""); setOpen(false); }
+  function select(market: Market) { onChange(market.id); setQuery(""); setOpen(false); setActiveIndex(0); }
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") { setOpen(false); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); setOpen(true);
+      if (filtered.length) setActiveIndex(current => (current + (e.key === "ArrowDown" ? 1 : -1) + filtered.length) % filtered.length);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!open) { setOpen(true); return; }
+      if (filtered[activeIndex]) select(filtered[activeIndex]);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
       {label && <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}{required && <span className="text-red-400 ml-1">*</span>}</label>}
       {selectedMarket && !open ? (
-        <div className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer`}
+        <button type="button" className={`${isDark ? "bg-slate-900 border-teal-500 text-slate-100" : "bg-white border-teal-500 text-slate-900"} border rounded-xl px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-teal-500/40`}
           onClick={() => { setOpen(true); setQuery(""); }}>
           <span className="truncate">{selectedMarket.name}</span>
           <span className="text-slate-500 text-xs ml-2 flex-shrink-0">trocar</span>
-        </div>
+        </button>
       ) : (
-        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
           placeholder={selectedMarket ? selectedMarket.name : "Digite para buscar mercado..."}
           className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
@@ -210,7 +244,7 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
           ) : (
             filtered.map(market => (
               <button key={market.id} onMouseDown={() => select(market)}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(market) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20 text-blue-400"><Icon name="store" size={11} /></div>
                 <div className="min-w-0">
                   <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-medium truncate`}>{market.name}</p>

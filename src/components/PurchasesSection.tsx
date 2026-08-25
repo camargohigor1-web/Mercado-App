@@ -77,6 +77,12 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const productNameRef    = useRef<HTMLInputElement>(null);
   const productPkgSizeRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!lineModal || !lf.itemId) return;
+    const timer = window.setTimeout(() => numPkgsRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [lineModal, lf.itemId]);
+
   const getItem = (id: string) => items.find(i => i.id === id);
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
 
@@ -580,7 +586,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
               <ProductSearch
                 label="Produto" value={lf.itemId}
                 onChange={v => setLf({ ...lf, itemId: v, numPkgs: "", pkgQty: "", pricePerPkg: "", discount: "0" })}
-                items={items} onCreateMissing={openNewProductFromSearch} required
+                items={items} onCreateMissing={openNewProductFromSearch} required autoFocus
               />
               {lineItem && (
                 <>
@@ -626,6 +632,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                   <Inp inputRef={brandRef} label="Marca (opcional)" value={lf.brand} onChange={v => setLf({ ...lf, brand: v })} placeholder="Ex: Camil, Yoki..."
                     onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
                   <Inp inputRef={noteRef} label="Observações (opcional)" value={lf.note} onChange={v => setLf({ ...lf, note: v })} placeholder="Anotação livre..." onEnter={saveLine} />
+                  <p className="hidden md:block text-[10px] text-slate-500 text-center">↑ ↓ selecionam · Enter avança/confirma · Esc fecha</p>
                 </>
               )}
               <div className="flex gap-3 pt-1">
