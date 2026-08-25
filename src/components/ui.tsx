@@ -92,6 +92,8 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
   const [open, setOpen]   = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selectedItem = items.find(i => i.id === value);
   const cleanQuery = query.trim();
 
@@ -111,12 +113,28 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
   const canCreate = Boolean(onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()));
   const optionCount = filtered.length + (canCreate ? 1 : 0);
 
+  function moveActive(delta: number) {
+    if (!optionCount) return;
+    setOpen(true);
+    setActiveIndex(current => {
+      const next = (current + delta + optionCount) % optionCount;
+      window.requestAnimationFrame(() => optionRefs.current[next]?.focus());
+      return next;
+    });
+  }
+
+  function handleOptionKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveActive(1); }
+    if (e.key === "ArrowUp") { e.preventDefault(); moveActive(-1); }
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); inputRef.current?.focus(); }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") { setOpen(false); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true);
-      if (optionCount) setActiveIndex(current => (current + (e.key === "ArrowDown" ? 1 : -1) + optionCount) % optionCount);
+      moveActive(e.key === "ArrowDown" ? 1 : -1);
       return;
     }
     if (e.key === "Enter") {
@@ -137,7 +155,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
           <span className="text-slate-500 text-xs">trocar</span>
         </button>
       ) : (
-        <input autoFocus={autoFocus || open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
+        <input ref={inputRef} autoFocus={autoFocus || open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
           placeholder={selectedItem ? selectedItem.name : "Digite para buscar produto..."}
           className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
@@ -147,7 +165,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
             <div className="py-2">
               <p className="text-slate-500 text-xs text-center py-2">Nenhum produto encontrado</p>
               {onCreateMissing && cleanQuery && (
-                <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
+                <button ref={el => { optionRefs.current[0] = el; }} onKeyDown={handleOptionKeyDown} onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
                   className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${activeIndex === 0 ? (isDark ? "bg-slate-800" : "bg-teal-50") : ""} ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
                   <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
                   <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
@@ -156,9 +174,9 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
             </div>
           ) : (
             <>
-              {filtered.map(item => (
-                <button key={item.id} onMouseDown={e => e.preventDefault()} onClick={() => select(item)}
-                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(item) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+              {filtered.map((item, index) => (
+                <button key={item.id} ref={el => { optionRefs.current[index] = el; }} onKeyDown={handleOptionKeyDown} onMouseDown={e => e.preventDefault()} onClick={() => select(item)}
+                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-teal-500 ${activeIndex === index ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "bulk" ? "bg-teal-500/20 text-teal-400" : "bg-amber-500/20 text-amber-400"}`}>
                     <Icon name={item.type === "bulk" ? "scale" : "box"} size={11} />
                   </div>
@@ -169,7 +187,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
                 </button>
               ))}
               {onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()) && (
-                <button onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
+                <button ref={el => { optionRefs.current[filtered.length] = el; }} onKeyDown={handleOptionKeyDown} onMouseDown={e => { e.preventDefault(); createMissing(); }} onClick={createMissing}
                   className={`w-full px-3 py-3 flex items-center gap-2.5 text-left transition-colors ${activeIndex === filtered.length ? (isDark ? "bg-slate-800" : "bg-teal-50") : ""} ${isDark ? "hover:bg-slate-800 text-teal-400" : "hover:bg-teal-50 text-teal-700"}`}>
                   <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-500/20"><Icon name="plus" size={12} /></span>
                   <span className="text-xs font-black truncate">Cadastrar novo produto "{cleanQuery}"</span>
@@ -195,6 +213,8 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
   const [open, setOpen]   = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const selectedMarket = markets.find(m => m.id === value);
 
   useEffect(() => {
@@ -209,11 +229,25 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
   ).slice(0, 20);
 
   function select(market: Market) { onChange(market.id); setQuery(""); setOpen(false); setActiveIndex(0); }
+  function moveActive(delta: number) {
+    if (!filtered.length) return;
+    setOpen(true);
+    setActiveIndex(current => {
+      const next = (current + delta + filtered.length) % filtered.length;
+      window.requestAnimationFrame(() => optionRefs.current[next]?.focus());
+      return next;
+    });
+  }
+  function handleOptionKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveActive(1); }
+    if (e.key === "ArrowUp") { e.preventDefault(); moveActive(-1); }
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); inputRef.current?.focus(); }
+  }
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") { setOpen(false); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault(); setOpen(true);
-      if (filtered.length) setActiveIndex(current => (current + (e.key === "ArrowDown" ? 1 : -1) + filtered.length) % filtered.length);
+      moveActive(e.key === "ArrowDown" ? 1 : -1);
       return;
     }
     if (e.key === "Enter") {
@@ -233,7 +267,7 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
           <span className="text-slate-500 text-xs ml-2 flex-shrink-0">trocar</span>
         </button>
       ) : (
-        <input autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
+        <input ref={inputRef} autoFocus={open} value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown}
           placeholder={selectedMarket ? selectedMarket.name : "Digite para buscar mercado..."}
           className={`${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-all`} />
       )}
@@ -242,9 +276,9 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
           {filtered.length === 0 ? (
             <p className="text-slate-500 text-xs text-center py-4">Nenhum mercado encontrado</p>
           ) : (
-            filtered.map(market => (
-              <button key={market.id} onMouseDown={e => e.preventDefault()} onClick={() => select(market)}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(market) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
+            filtered.map((market, index) => (
+              <button key={market.id} ref={el => { optionRefs.current[index] = el; }} onKeyDown={handleOptionKeyDown} onMouseDown={e => e.preventDefault()} onClick={() => select(market)}
+                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-teal-500 ${activeIndex === index ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20 text-blue-400"><Icon name="store" size={11} /></div>
                 <div className="min-w-0">
                   <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-medium truncate`}>{market.name}</p>
