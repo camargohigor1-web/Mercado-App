@@ -157,7 +157,7 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
           ) : (
             <>
               {filtered.map(item => (
-                <button key={item.id} onMouseDown={() => select(item)}
+                <button key={item.id} onMouseDown={e => e.preventDefault()} onClick={() => select(item)}
                   className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(item) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "bulk" ? "bg-teal-500/20 text-teal-400" : "bg-amber-500/20 text-amber-400"}`}>
                     <Icon name={item.type === "bulk" ? "scale" : "box"} size={11} />
@@ -243,7 +243,7 @@ export function MarketSearch({ label, value, onChange, markets, required }: Mark
             <p className="text-slate-500 text-xs text-center py-4">Nenhum mercado encontrado</p>
           ) : (
             filtered.map(market => (
-              <button key={market.id} onMouseDown={() => select(market)}
+              <button key={market.id} onMouseDown={e => e.preventDefault()} onClick={() => select(market)}
                 className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 ${activeIndex === filtered.indexOf(market) ? (isDark ? "bg-slate-800" : "bg-slate-50") : ""} ${isDark ? "hover:bg-slate-800 border-slate-800" : "hover:bg-slate-50 border-slate-200"} transition-colors border-b last:border-0`}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20 text-blue-400"><Icon name="store" size={11} /></div>
                 <div className="min-w-0">

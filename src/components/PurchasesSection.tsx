@@ -107,7 +107,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     setLineModal(true);
   }
 
-  function saveLine() {
+  function saveLine(addNext = false) {
     const it = getItem(lf.itemId);
     if (!it || !lf.numPkgs || !lf.pricePerPkg) return;
     if (it.type === "bulk" && !lf.pkgQty) return;
@@ -130,6 +130,10 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     }
     if (editIdx !== null) { const ls = [...form.lines]; ls[editIdx] = line; setForm({ ...form, lines: ls }); }
     else setForm({ ...form, lines: [...form.lines, line] });
+    if (addNext && editIdx === null) {
+      setLf({ itemId: "", numPkgs: "", pkgQty: "", pricePerPkg: "", discount: "0", brand: "", note: "" });
+      return;
+    }
     setLineModal(false);
   }
 
@@ -631,8 +635,8 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                   )}
                   <Inp inputRef={brandRef} label="Marca (opcional)" value={lf.brand} onChange={v => setLf({ ...lf, brand: v })} placeholder="Ex: Camil, Yoki..."
                     onEnter={() => { if (noteRef.current) noteRef.current.focus(); }} />
-                  <Inp inputRef={noteRef} label="Observações (opcional)" value={lf.note} onChange={v => setLf({ ...lf, note: v })} placeholder="Anotação livre..." onEnter={saveLine} />
-                  <p className="hidden md:block text-[10px] text-slate-500 text-center">↑ ↓ selecionam · Enter avança/confirma · Esc fecha</p>
+                  <Inp inputRef={noteRef} label="Observações (opcional)" value={lf.note} onChange={v => setLf({ ...lf, note: v })} placeholder="Anotação livre..." onEnter={() => saveLine(true)} />
+                  <p className="hidden md:block text-[10px] text-slate-500 text-center">↑ ↓ selecionam · Enter avança/confirma e abre o próximo item · Esc fecha</p>
                 </>
               )}
               <div className="flex gap-3 pt-1">
