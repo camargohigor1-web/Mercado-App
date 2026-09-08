@@ -4,7 +4,7 @@ import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
-import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
+import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
 
 interface ShoppingListSectionProps {
@@ -54,13 +54,14 @@ export function CategoryPills({
 const MarketItemCard = memo(function MarketItemCard({
   itemId, item, stats, qty, isDark, isExpanded,
   onToggle, onRemove, onExpand, onQtyChange,
-  recentEntries, priceEvolution, onNavigatePurchase, onCompare,
+  recentEntries, priceEvolution, habit, onNavigatePurchase, onCompare,
 }: {
   itemId: string; item: Item; stats: ReturnType<typeof calcStats>;
   qty: number; isDark: boolean; isExpanded: boolean;
   onToggle: () => void; onRemove: () => void; onExpand: () => void;
   onQtyChange: (val: number) => void; recentEntries: any[];
   priceEvolution: LineChartPoint[];
+  habit: ReturnType<typeof calcPurchaseHabitStats>;
   onNavigatePurchase?: (purchaseId: string, itemId: string) => void;
   onCompare: () => void;
 }) {
@@ -80,6 +81,12 @@ const MarketItemCard = memo(function MarketItemCard({
   const avgPrice  = stats ? (item.type === "bulk" ? stats.avgPrice  / factor : stats.avgPrice)  : null;
   const priceVsAvg = lastPrice !== null && avgPrice !== null && avgPrice > 0
     ? ((lastPrice - avgPrice) / avgPrice) * 100 : null;
+  const habitMonthlyQty = habit && item.type === "packaged" && habit.avgMonthlyInternalQty !== null
+    ? `${fmtN(habit.avgMonthlyInternalQty, 0)} ${item.pkgUnit || "un"}`
+    : habit ? `${fmtN(habit.avgMonthlyQty * factor, 2)} ${item.type === "bulk" ? du : "emb"}` : null;
+  const habitPerPurchase = habit && item.type === "packaged" && habit.avgInternalQtyPerPurchase !== null
+    ? `${fmtN(habit.avgInternalQtyPerPurchase, 0)} ${item.pkgUnit || "un"}`
+    : habit ? `${fmtN(habit.avgQtyPerPurchase * factor, 2)} ${item.type === "bulk" ? du : "emb"}` : null;
 
   const handleQtyBlur = useCallback(() => {
     const n = parseFloat(localQty);
@@ -186,6 +193,26 @@ const MarketItemCard = memo(function MarketItemCard({
             </p>
           )}
 
+          {habit && (
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                Seus hábitos
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: "Média/mês", value: habitMonthlyQty, color: isDark ? "bg-teal-500/10 text-teal-400" : "bg-teal-50 text-teal-700" },
+                  { label: "Por compra", value: habitPerPurchase, color: isDark ? "bg-green-500/10 text-green-400" : "bg-green-50 text-green-700" },
+                  { label: "Frequência", value: `${fmtN(habit.purchasesPerMonth, 1)}x/mês`, color: isDark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-700" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className={`rounded-xl p-2.5 ${color}`}>
+                    <p className="text-[9px] font-black uppercase tracking-wide opacity-70 mb-1">{label}</p>
+                    <p className="text-xs font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Price evolution chart */}
           {priceEvolution.length >= 2 && (
             <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
@@ -283,6 +310,68 @@ const QuickAddItem = memo(function QuickAddItem({
   );
 });
 
+// ─── PlanItemCard ───────────────────────────────────────────────────────────
+// Expanding is informational; only the explicit + action changes the shopping list.
+const PlanItemCard = memo(function PlanItemCard({
+  item, stats, isDark, isExpanded, onExpand, onAdd, onCompare,
+}: {
+  item: Item; stats: ReturnType<typeof calcStats>; isDark: boolean; isExpanded: boolean;
+  onExpand: () => void; onAdd: () => void; onCompare: () => void;
+}) {
+  const factor = getDisplayFactor(item);
+  const unit = item.type === "bulk" ? getDisplayUnit(item) : "emb";
+  const price = (value: number) => item.type === "bulk" ? value / factor : value;
+  const last = stats ? price(stats.lastPrice) : null;
+  const average = stats ? price(stats.avgPrice) : null;
+  const minimum = stats ? price(stats.minPrice) : null;
+
+  return (
+    <div className={`rounded-xl border overflow-hidden transition-all ${
+      isExpanded
+        ? isDark ? "bg-slate-900 border-teal-500/40" : "bg-white border-teal-400/50"
+        : isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+    }`}>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <button type="button" onClick={onExpand} className="flex-1 min-w-0 text-left">
+          <p className={`text-sm font-medium truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
+          {average !== null
+            ? <p className="text-[10px] text-green-400 mt-0.5">Médio {fmt(average)}/{unit}</p>
+            : <p className={`text-[10px] mt-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico</p>}
+        </button>
+        <button type="button" onClick={onCompare} title={`Comparar preços de ${item.name}`} aria-label={`Comparar preços de ${item.name}`}
+          className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+          <Icon name="scale" size={14} />
+        </button>
+        <button type="button" onClick={onAdd} title={`Adicionar ${item.name} à lista`} aria-label={`Adicionar ${item.name} à lista`}
+          className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-teal-500/15 text-teal-400 hover:bg-teal-500/25" : "bg-teal-100 text-teal-600 hover:bg-teal-200"}`}>
+          <Icon name="plus" size={14} />
+        </button>
+        <button type="button" onClick={onExpand} aria-label={isExpanded ? "Fechar detalhes" : "Abrir detalhes"}
+          className={`p-1 flex-shrink-0 ${isDark ? "text-slate-600" : "text-slate-400"} ${isExpanded ? "rotate-90" : ""}`}>
+          <Icon name="chevron" size={14} />
+        </button>
+      </div>
+      {isExpanded && (
+        <div className={`border-t px-3 py-3 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+          {stats ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { label: "Mínimo", value: minimum, color: isDark ? "bg-teal-500/10 text-teal-400" : "bg-teal-50 text-teal-700" },
+                { label: "Médio", value: average, color: isDark ? "bg-green-500/10 text-green-400" : "bg-green-50 text-green-700" },
+                { label: "Último", value: last, color: isDark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-700" },
+              ].map(({ label, value, color }) => <div key={label} className={`rounded-xl p-2 ${color}`}>
+                <p className="text-[9px] font-black uppercase opacity-70">{label}</p>
+                <p className="text-xs font-black mt-1">{fmt(value!)}</p>
+                <p className="text-[9px] opacity-70">/{unit}</p>
+              </div>)}
+            </div>
+          ) : <p className={`text-xs text-center py-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico de preços ainda</p>}
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── Main Section ─────────────────────────────────────────────────────────────
 export function ShoppingListSection({
   onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
@@ -300,6 +389,7 @@ export function ShoppingListSection({
   const [inListSearch, setInListSearch] = useState("");
   const [filterCatInList, setFilterCatInList] = useState("");
   const [inListSort, setInListSort] = useState<"category" | "alpha" | "added">("category");
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   // market
   const [marketSearch, setMarketSearch] = useState("");
@@ -335,6 +425,15 @@ export function ShoppingListSection({
     const cache: Record<string, ReturnType<typeof calcStats>> = {};
     items.forEach((item) => {
       cache[item.id] = calcStats(item.id, items, purchases, []);
+    });
+    return cache;
+  }, [items, purchases]);
+
+  // Read-only: habits remain derived from purchase history and are never persisted here.
+  const habitCache = useMemo(() => {
+    const cache: Record<string, ReturnType<typeof calcPurchaseHabitStats>> = {};
+    items.forEach((item) => {
+      cache[item.id] = calcPurchaseHabitStats(item.id, item, purchases);
     });
     return cache;
   }, [items, purchases]);
@@ -762,26 +861,11 @@ export function ShoppingListSection({
                   <div className="space-y-1.5">
                     {catItems.map((item) => {
                       const s = statsCache[item.id];
-                      const factor = getDisplayFactor(item);
-                      const du = getDisplayUnit(item);
-                      const avg = s ? (item.type === "bulk" ? s.avgPrice / factor : s.avgPrice) : null;
                       return (
-                        <button key={item.id} onClick={() => addItem(item.id)}
-                          className={`w-full text-left px-3 py-2.5 rounded-xl border flex items-center justify-between gap-3 transition-all active:scale-[0.98] ${
-                            isDark ? "bg-slate-900 border-slate-800 hover:border-teal-500/50 hover:bg-teal-500/5"
-                                   : "bg-white border-slate-200 hover:border-teal-400 hover:bg-teal-50/50"
-                          }`}>
-                          <div className="min-w-0">
-                            <p className={`text-sm font-medium truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
-                            {avg !== null
-                              ? <p className="text-[10px] text-green-400 mt-0.5">Médio {fmt(avg)}/{du}</p>
-                              : <p className="text-[10px] text-slate-600 mt-0.5">Sem histórico</p>
-                            }
-                          </div>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-100 text-teal-600"}`}>
-                            <Icon name="plus" size={14} />
-                          </div>
-                        </button>
+                        <PlanItemCard key={item.id} item={item} stats={s} isDark={isDark}
+                          isExpanded={expandedPlanId === item.id}
+                          onExpand={() => setExpandedPlanId(expandedPlanId === item.id ? null : item.id)}
+                          onAdd={() => addItem(item.id)} onCompare={() => openCompare(item)} />
                       );
                     })}
                   </div>
@@ -1000,6 +1084,7 @@ export function ShoppingListSection({
                             onQtyChange={(n) => updateQty(itemId, n)}
                             recentEntries={recentEntriesCache[itemId] || []}
                             priceEvolution={priceEvolutionCache[itemId] || []}
+                            habit={habitCache[itemId] || null}
                             onNavigatePurchase={(onGoToHistoryPurchase || onGoToHistoryPurchaseWithProduct) ? handleNavigatePurchase : undefined}
                             onCompare={() => openCompare(item!)}
                           />
