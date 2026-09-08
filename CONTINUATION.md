@@ -5,6 +5,8 @@
 - `src/components/ShoppingListSection.tsx` concentra a interface de **Planejar** e **Mercado**.
 - Em **Planejar**, clicar no card apenas abre seus detalhes. As ações explícitas ao lado são: balança para o comparador e `+` para incluir o produto na lista do Mercado.
 - Em **Mercado**, o card aberto mostra preço mínimo, médio e último, além de média mensal, média por compra e frequência dos hábitos.
+- Em **Histórico**, a lista de produtos mostra média mensal e frequência; no detalhe do produto, os três indicadores de hábitos respeitam o filtro de datas selecionado.
+- Em **Relatórios**, o detalhe expandido de cada produto na análise por categoria mostra os mesmos três indicadores, calculados para o período filtrado.
 
 ## Segurança dos dados
 

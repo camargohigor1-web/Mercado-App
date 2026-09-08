@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { Card, Badge, Empty, StatBox, BarChart, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
 import { CategoryPills } from "./ShoppingListSection";
-import { fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats } from "../utils";
+import { fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 import type { Item, Purchase } from "../types";
 
 interface HistorySectionProps {
@@ -16,6 +16,11 @@ interface HistorySectionProps {
   initialHighlightedProductId?: string;
   onNavigateAway?: () => void;
   initialItemId?: string;
+}
+
+function habitQuantity(item: Item, qty: number, internalQty: number | null, factor: number) {
+  if (item.type === "packaged" && internalQty !== null) return `${fmtN(internalQty, 0)} ${item.pkgUnit || "un"}`;
+  return item.type === "bulk" ? `${fmtN(qty * factor, 2)} ${getDisplayUnit(item)}` : `${fmtN(qty, 1)} emb`;
 }
 
 export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialItemId }: HistorySectionProps) {
@@ -63,6 +68,11 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
   const getItem = (id: string) => items.find(i => i.id === id);
+
+  // Hábitos são indicadores somente de leitura, derivados das compras existentes.
+  const habitCache = useMemo(() => Object.fromEntries(items.map(item => [
+    item.id, calcPurchaseHabitStats(item.id, item, purchases),
+  ])), [items, purchases]) as Record<string, ReturnType<typeof calcPurchaseHabitStats>>;
 
   const withStats = items
     .map(item => ({ item, stats: calcStats(item.id, items, purchases, []) }))
@@ -164,6 +174,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       return p.lines.some(l => l.itemId === item.id);
     });
     const periodStats = calcStats(item.id, items, purchasesInPeriod, []);
+    const periodHabit = calcPurchaseHabitStats(item.id, item, purchases, historyDateFrom || undefined, historyDateTo || undefined);
 
     const chronoEntries = [...visibleEntries].sort((a, b) => a.date.localeCompare(b.date));
     const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
@@ -224,6 +235,17 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
             <StatBox label="Último preço/emb" val={fmt(periodStats.lastPrice)} color="blue" />
           </div>
         ) : null}
+
+        {periodHabit && (
+          <div>
+            <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Seus hábitos {periodLabel}</p>
+            <div className="grid grid-cols-3 gap-2">
+              <StatBox label="Média/mês" val={habitQuantity(item, periodHabit.avgMonthlyQty, periodHabit.avgMonthlyInternalQty, factor)} color="teal" />
+              <StatBox label="Por compra" val={habitQuantity(item, periodHabit.avgQtyPerPurchase, periodHabit.avgInternalQtyPerPurchase, factor)} color="green" />
+              <StatBox label="Frequência" val={`${fmtN(periodHabit.purchasesPerMonth, 1)}x/mês`} color="blue" />
+            </div>
+          </div>
+        )}
 
         {visibleEntries.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
@@ -489,13 +511,15 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                   if (!stats) return null;
                   const factor = getDisplayFactor(item);
                   const du2 = getDisplayUnit(item);
+                  const habit = habitCache[item.id];
                   return (
                     <Card key={item.id} onClick={() => setSelectedItem({ item, stats })} className={isDark ? "hover:border-slate-600" : "hover:border-slate-300"}>
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>{item.name}</p>
                           <div className="flex gap-3 mt-1.5 flex-wrap">
-                            <span className="text-xs text-slate-500">Média comprada: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{item.type === "bulk" ? `${fmtN(stats.avgMonthly * factor, 2)} ${du2}/mês` : `${fmtN(stats.avgMonthly, 1)} emb/mês`}</span></span>
+                            <span className="text-xs text-slate-500">Média/mês: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{habit ? habitQuantity(item, habit.avgMonthlyQty, habit.avgMonthlyInternalQty, factor) : item.type === "bulk" ? `${fmtN(stats.avgMonthly * factor, 2)} ${du2}` : `${fmtN(stats.avgMonthly, 1)} emb`}</span></span>
+                            {habit && <span className="text-xs text-slate-500">{fmtN(habit.purchasesPerMonth, 1)}x/mês</span>}
                             <span className="text-xs text-slate-500">Médio: <span className="text-green-400 font-semibold">{item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du2}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
                           </div>
                         </div>

@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { Empty, StatBox, BarChart, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
 import { CategoryPills } from "./ShoppingListSection";
-import { fmt, fmtN, calcStats, getDisplayFactor, getDisplayUnit } from "../utils";
+import { fmt, fmtN, calcStats, calcPurchaseHabitStats, getDisplayFactor, getDisplayUnit } from "../utils";
 import { MarketComparison } from "./MarketComparison";
 
 interface ReportsSectionProps {
@@ -23,6 +23,11 @@ export interface ReportsViewState {
   selectedCategory: string;
   expandedPriceItemId: string | null;
   productSearch: string;
+}
+
+function habitQuantity(item: { type: "bulk" | "packaged"; pkgUnit?: string }, qty: number, internalQty: number | null, factor: number, unit: string) {
+  if (item.type === "packaged" && internalQty !== null) return `${fmtN(internalQty, 0)} ${item.pkgUnit || "un"}`;
+  return item.type === "bulk" ? `${fmtN(qty * factor, 2)} ${unit}` : `${fmtN(qty, 1)} emb`;
 }
 
 export function ReportsSection({ initialMonth, viewState, onViewStateChange, onGoToHistoryItem }: ReportsSectionProps) {
@@ -150,6 +155,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
     if (!item) return [];
     const stats = calcStats(id, items, filtered, []);
     if (!stats) return [];
+    const habit = calcPurchaseHabitStats(id, item, filtered);
     const factor = getDisplayFactor(item);
     const isUnit = item.type === "bulk";
     const du = getDisplayUnit(item);
@@ -175,7 +181,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
     }));
 
     return [{
-      id, item, factor, du, isUnit, freq, spent,
+      id, item, factor, du, isUnit, freq, spent, habit,
       avg: isUnit ? stats.avgPrice / factor : stats.avgPrice,
       min: isUnit ? stats.minPrice / factor : stats.minPrice,
       last: isUnit ? stats.lastPrice / factor : stats.lastPrice,
@@ -333,7 +339,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
                 ) : (
                 <div className="space-y-3">
                   {filteredProductPriceDetails.map(pd => {
-                    const { id, item, factor, du, isUnit, freq, spent, avg, min, last, avgMonthly, unit, recentEntries, priceEvolution } = pd;
+                    const { id, item, factor, du, isUnit, freq, spent, avg, min, last, avgMonthly, unit, recentEntries, priceEvolution, habit } = pd;
                     const isAboveAvg = last > avg;
                     const savings = avg > 0 ? ((avg - min) / avg) * 100 : 0;
                     const isExpanded = expandedPriceItemId === id;
@@ -382,6 +388,24 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
 
                         {isExpanded && (
                           <div className={`border-t px-4 pb-4 pt-3 space-y-3 animate-fade-slide-up ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                            <div>
+                              <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Seus hábitos no período</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className={`rounded-xl p-2.5 ${isDark ? "bg-teal-500/10 text-teal-400" : "bg-teal-50 text-teal-700"}`}>
+                                  <p className="text-[9px] font-black uppercase tracking-wide opacity-70 mb-1">Média/mês</p>
+                                  <p className="text-xs font-black">{habit ? habitQuantity(item, habit.avgMonthlyQty, habit.avgMonthlyInternalQty, factor, du) : isUnit ? `${fmtN(avgMonthly, 2)} ${du}` : `${fmtN(avgMonthly, 1)} emb`}</p>
+                                </div>
+                                <div className={`rounded-xl p-2.5 ${isDark ? "bg-green-500/10 text-green-400" : "bg-green-50 text-green-700"}`}>
+                                  <p className="text-[9px] font-black uppercase tracking-wide opacity-70 mb-1">Por compra</p>
+                                  <p className="text-xs font-black">{habit ? habitQuantity(item, habit.avgQtyPerPurchase, habit.avgInternalQtyPerPurchase, factor, du) : "—"}</p>
+                                </div>
+                                <div className={`rounded-xl p-2.5 ${isDark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-700"}`}>
+                                  <p className="text-[9px] font-black uppercase tracking-wide opacity-70 mb-1">Frequência</p>
+                                  <p className="text-xs font-black">{habit ? `${fmtN(habit.purchasesPerMonth, 1)}x/mês` : "—"}</p>
+                                </div>
+                              </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-2">
                               <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
                                 <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Média comprada/mês</p>
