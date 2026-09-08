@@ -288,7 +288,7 @@ export function ShoppingListSection({
   onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
 }: ShoppingListSectionProps) {
   const { isDark } = useTheme();
-  const { items, markets, purchases, warehouse, list: shoppingList, setList: setShoppingList } = useAppContext();
+  const { items, markets, purchases, list: shoppingList, setList: setShoppingList } = useAppContext();
 
   // ── State ──────────────────────────────────────────────────────────────────
   // Default to "market" tab
@@ -334,10 +334,10 @@ export function ShoppingListSection({
   const statsCache = useMemo(() => {
     const cache: Record<string, ReturnType<typeof calcStats>> = {};
     items.forEach((item) => {
-      cache[item.id] = calcStats(item.id, items, purchases, warehouse.find((w) => w.itemId === item.id)?.entries ?? []);
+      cache[item.id] = calcStats(item.id, items, purchases, []);
     });
     return cache;
-  }, [items, purchases, warehouse]);
+  }, [items, purchases]);
 
   const recentEntriesCache = useMemo(() => {
     const cache: Record<string, any[]> = {};

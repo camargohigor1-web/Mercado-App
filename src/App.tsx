@@ -14,7 +14,7 @@ import { SyncIndicator } from "./components/SyncIndicator"; // ◄ IMPORTADO AQU
 const HomeSection      = lazy(() => import("./components/HomeSection").then(m => ({ default: m.HomeSection })));
 const ShoppingListSection = lazy(() => import("./components/ShoppingListSection").then(m => ({ default: m.ShoppingListSection })));
 const HistorySection   = lazy(() => import("./components/HistorySection").then(m => ({ default: m.HistorySection })));
-const WarehouseSection = lazy(() => import("./components/WarehouseSection").then(m => ({ default: m.WarehouseSection })));
+const PurchaseHabitsSection = lazy(() => import("./components/PurchaseHabitsSection").then(m => ({ default: m.PurchaseHabitsSection })));
 const PurchasesSection = lazy(() => import("./components/PurchasesSection").then(m => ({ default: m.PurchasesSection })));
 const ItemsSection     = lazy(() => import("./components/ItemsSection").then(m => ({ default: m.ItemsSection })));
 const MarketsSection   = lazy(() => import("./components/MarketsSection").then(m => ({ default: m.MarketsSection })));
@@ -28,7 +28,7 @@ const TITLES: Record<string, string> = {
   shopping:  "Lista de Compras",
   purchases: "Compras",
   history:   "Histórico",
-  warehouse: "Armazém",
+  warehouse: "Hábitos de compra",
   items:     "Produtos",
   markets:   "Mercados",
   backup:    "Backup",
@@ -59,7 +59,7 @@ const DEFAULT_REPORTS_VIEW_STATE: ReportsViewState = {
 };
 
 function AppInner() {
-  const { theme, setTheme, list, setList, purchases, setPurchases, warehouse, setWarehouse, items, setItems, markets, categories, setCategories, restoreAll } = useAppContext();
+  const { theme, setTheme, list, setList, purchases, setPurchases, items, setItems, markets, categories, setCategories, restoreAll } = useAppContext();
   const { toasts, show: showToast, dismiss } = useToast();
 
   const [tab, setTab]           = useState("home");
@@ -72,8 +72,6 @@ function AppInner() {
   const [openPurchaseId, setOpenPurchaseId] = useState<string | undefined>(undefined);
   const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
-  const [warehouseSelectionCount, setWarehouseSelectionCount] = useState(0);
-  const [pendingTab, setPendingTab] = useState<string | null>(null);
 
   // Listener de erro de storage
   useEffect(() => {
@@ -135,11 +133,7 @@ function AppInner() {
   }
 
   function navigateTo(dest: string) {
-    if (tab === "warehouse" && warehouseSelectionCount > 0 && dest !== "warehouse") {
-      setPendingTab(dest);
-    } else {
-      setTab(dest);
-    }
+    setTab(dest);
   }
 
   function handleRestore(data: {
@@ -235,7 +229,6 @@ function AppInner() {
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
                   onGoToHistory={() => setTab("history")}
-                  onGoToWarehouse={() => setTab("warehouse")}
                   onGoToItems={() => setTab("items")}
                   onRepeatPurchase={handleRepeatPurchase}
                   onGoToReports={handleGoToReports}
@@ -261,10 +254,7 @@ function AppInner() {
                 />
               )}
               {tab === "warehouse" && (
-                <WarehouseSection
-                  onGoToNewPurchase={handleGoToNewPurchase}
-                  onSelectionChange={setWarehouseSelectionCount}
-                />
+                <PurchaseHabitsSection />
               )}
               {tab === "purchases" && (
                 <PurchasesSection
@@ -324,42 +314,12 @@ function AppInner() {
               </span>
             </div>
 
-            <NavTab id="warehouse" label="Armazém"   icon="warehouse" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
+            <NavTab id="warehouse" label="Hábitos"   icon="trend" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
 
             <NavTab id="reports" label="Relatório" icon="chart" active={tab==="reports"} isDark={isDark} onClick={() => navigateTo("reports")} />
 
           </div>
         </nav>
-
-        {/* ── Warehouse leave-guard ────────────────────────────────────────── */}
-        {pendingTab && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setPendingTab(null)} />
-            <div className={`relative w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl animate-slide-up ${isDark ? "bg-slate-900 border border-white/8" : "bg-white border border-black/8"}`}>
-              <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isDark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>
-                  <Icon name="warn" size={16} />
-                </div>
-                <div>
-                  <p className={`font-black text-sm ${text}`}>Sair com seleção ativa?</p>
-                  <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    {warehouseSelectionCount} {warehouseSelectionCount===1?"item selecionado":"itens selecionados"} no armazém. A seleção será perdida.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setPendingTab(null)}
-                  className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all press-scale ${isDark ? "bg-white/5 text-slate-200 hover:bg-white/10" : "bg-black/5 text-slate-700 hover:bg-black/10"}`}>
-                  Cancelar
-                </button>
-                <button onClick={() => { setTab(pendingTab); setWarehouseSelectionCount(0); setPendingTab(null); }}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-400 transition-all press-scale">
-                  Sair assim mesmo
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <RightDrawer
           open={drawerOpen} onClose={() => setDrawer(false)}

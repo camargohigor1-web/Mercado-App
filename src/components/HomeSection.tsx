@@ -3,13 +3,12 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Badge } from "./ui";
-import { fmt, getLowStockItems } from "../utils";
+import { fmt } from "../utils";
 import type { Purchase } from "../types";
 
 interface HomeSectionProps {
   onGoToNewPurchase: () => void;
   onGoToHistory: () => void;
-  onGoToWarehouse: () => void;
   onGoToItems: () => void;
   onRepeatPurchase: (purchase: Purchase) => void;
   onGoToReports: (month: string) => void;
@@ -178,11 +177,11 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 }
 
 export function HomeSection({
-  onGoToNewPurchase, onGoToWarehouse, onGoToItems,
+  onGoToNewPurchase, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase,
 }: HomeSectionProps) {
   const { isDark } = useTheme();
-  const { items, markets, purchases, warehouse, list } = useAppContext();
+  const { items, markets, purchases, list } = useAppContext();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -193,9 +192,6 @@ export function HomeSection({
   const monthTotal     = monthPurchases.reduce((s, p) => s + p.total, 0);
   const isCurrentMonth = selectedMonth === currentMonth;
 
-  const low      = getLowStockItems(items, purchases, warehouse);
-  const critical = low.filter(l => l.daysLeft <= 7);
-  const warning  = low.filter(l => l.daysLeft > 7 && l.daysLeft <= 15);
   const getMkt   = (id: string) => markets.find(m => m.id === id)?.name ?? "Mercado";
 
   const card  = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
@@ -315,52 +311,6 @@ export function HomeSection({
           </div>
         </div>
       </div>
-
-      {critical.length > 0 && (
-        <div className="animate-fade-slide-up stagger-2">
-          <p className={`${lbl} mb-2.5`}>Acabando agora</p>
-          <div className={`rounded-2xl border p-4 ${isDark ? "bg-red-500/8 border-red-500/20" : "bg-red-50 border-red-200/60"}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Icon name="warn" size={14} />
-              <p className={`text-xs font-black ${isDark ? "text-red-300" : "text-red-700"}`}>
-                {critical.length} item{critical.length !== 1 ? "s" : ""} com menos de 7 dias
-              </p>
-            </div>
-            <div className="space-y-2">
-              {critical.slice(0, 3).map(({ item, daysLeft }) => (
-                <div key={item.id} className="flex items-center justify-between">
-                  <p className={`text-sm font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
-                  <Badge color="red">{daysLeft <= 0 ? "acabou" : `${daysLeft}d`}</Badge>
-                </div>
-              ))}
-              {critical.length > 3 && <p className={`text-xs ${isDark ? "text-red-400/50" : "text-red-400"}`}>+{critical.length - 3} outros</p>}
-            </div>
-            <button onClick={onGoToWarehouse}
-              className={`w-full mt-3 py-2.5 rounded-xl text-xs font-bold border transition-colors press-scale ${isDark ? "border-red-500/25 text-red-400 hover:bg-red-500/10" : "border-red-200 text-red-600 hover:bg-red-50"}`}>
-              Ver armazém →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {warning.length > 0 && !critical.length && (
-        <div className="animate-fade-slide-up stagger-2">
-          <p className={`${lbl} mb-2.5`}>Atenção no estoque</p>
-          <div className={`rounded-2xl border p-4 ${isDark ? "bg-amber-500/8 border-amber-500/20" : "bg-amber-50 border-amber-200/60"}`}>
-            <div className="flex flex-wrap gap-1.5">
-              {warning.map(({ item, daysLeft }) => (
-                <span key={item.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${isDark ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
-                  {item.name} <span className="opacity-60">{daysLeft}d</span>
-                </span>
-              ))}
-            </div>
-            <button onClick={onGoToWarehouse}
-              className={`w-full mt-3 py-2.5 rounded-xl text-xs font-bold border transition-colors press-scale ${isDark ? "border-amber-500/25 text-amber-400 hover:bg-amber-500/10" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
-              Ver armazém →
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="animate-fade-slide-up stagger-3">
         <p className={`${lbl} mb-2.5`}>Por categoria — {cap(monthLabel(selectedMonth))}</p>

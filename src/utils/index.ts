@@ -462,3 +462,102 @@ export function getWarehouseEntries(
 ): WarehouseEntry[] {
   return warehouse.find(w => w.itemId === itemId)?.entries ?? [];
 }
+
+// ─── Hábitos de compra ───────────────────────────────────────────────────────
+// Estas métricas usam exclusivamente compras registradas. Diferentemente das
+// estatísticas de consumo, elas não dependem de contagens manuais do armazém.
+export interface PurchaseHabitMonth {
+  key: string;
+  qty: number;
+  spent: number;
+  purchases: number;
+}
+
+export interface PurchaseHabitStats {
+  totalQty: number;
+  totalInternalQty: number | null;
+  totalSpent: number;
+  purchaseCount: number;
+  avgQtyPerPurchase: number;
+  avgInternalQtyPerPurchase: number | null;
+  avgMonthlyQty: number;
+  avgMonthlyInternalQty: number | null;
+  avgMonthlySpent: number;
+  purchasesPerMonth: number;
+  firstPurchaseDate: string;
+  lastPurchaseDate: string;
+  months: PurchaseHabitMonth[];
+}
+
+function calendarMonthsBetween(start: string, end: string): number {
+  const [startYear, startMonth] = start.slice(0, 7).split("-").map(Number);
+  const [endYear, endMonth] = end.slice(0, 7).split("-").map(Number);
+  return Math.max(1, (endYear - startYear) * 12 + endMonth - startMonth + 1);
+}
+
+/** Calcula frequência, quantidade e gasto de um produto no conjunto informado. */
+export function calcPurchaseHabitStats(
+  itemId: string,
+  item: Item,
+  purchases: Purchase[],
+  periodStart?: string,
+  periodEnd?: string,
+): PurchaseHabitStats | null {
+  const matching = purchases
+    .filter(p => (!periodStart || p.date >= periodStart) && (!periodEnd || p.date <= periodEnd))
+    .map(p => ({ purchase: p, lines: p.lines.filter(line => line.itemId === itemId) }))
+    .filter(entry => entry.lines.length > 0)
+    .sort((a, b) => a.purchase.date.localeCompare(b.purchase.date));
+
+  if (!matching.length) return null;
+
+  const months = new Map<string, PurchaseHabitMonth>();
+  let totalQty = 0;
+  let totalInternalQty = 0;
+  let totalSpent = 0;
+
+  matching.forEach(({ purchase, lines }) => {
+    const key = purchase.date.slice(0, 7);
+    const month = months.get(key) ?? { key, qty: 0, spent: 0, purchases: 0 };
+    let purchaseQty = 0;
+    let purchaseInternalQty = 0;
+    let purchaseSpent = 0;
+
+    lines.forEach(line => {
+      const qty = item.type === "bulk" ? (line.totalQty ?? 0) : line.numPkgs;
+      purchaseQty += qty;
+      purchaseInternalQty += item.type === "packaged" ? qty * (item.pkgSize || 1) : qty;
+      purchaseSpent += line.total || 0;
+    });
+
+    month.qty += purchaseQty;
+    month.spent += purchaseSpent;
+    // Uma ida ao mercado conta uma vez, mesmo que o item tenha mais de uma linha.
+    month.purchases += 1;
+    months.set(key, month);
+    totalQty += purchaseQty;
+    totalInternalQty += purchaseInternalQty;
+    totalSpent += purchaseSpent;
+  });
+
+  const firstPurchaseDate = matching[0].purchase.date;
+  const lastPurchaseDate = matching[matching.length - 1].purchase.date;
+  const monthsInPeriod = calendarMonthsBetween(periodStart || firstPurchaseDate, periodEnd || lastPurchaseDate);
+  const purchaseCount = matching.length;
+
+  return {
+    totalQty,
+    totalInternalQty: item.type === "packaged" ? totalInternalQty : null,
+    totalSpent,
+    purchaseCount,
+    avgQtyPerPurchase: totalQty / purchaseCount,
+    avgInternalQtyPerPurchase: item.type === "packaged" ? totalInternalQty / purchaseCount : null,
+    avgMonthlyQty: totalQty / monthsInPeriod,
+    avgMonthlyInternalQty: item.type === "packaged" ? totalInternalQty / monthsInPeriod : null,
+    avgMonthlySpent: totalSpent / monthsInPeriod,
+    purchasesPerMonth: purchaseCount / monthsInPeriod,
+    firstPurchaseDate,
+    lastPurchaseDate,
+    months: [...months.values()].sort((a, b) => a.key.localeCompare(b.key)),
+  };
+}

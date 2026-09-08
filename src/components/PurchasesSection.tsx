@@ -4,7 +4,7 @@ import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
-import type { Item, Market, Purchase, PurchaseLine, WarehouseItem } from "../types";
+import type { Item, Market, Purchase, PurchaseLine } from "../types";
 
 interface ImportedItem extends Omit<Item, "type"> {
   type: string;
@@ -25,7 +25,7 @@ interface PurchasesSectionProps {
 
 export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSaved }: PurchasesSectionProps) {
   const { isDark } = useTheme();
-  const { items, setItems, markets, setMarkets, purchases, setPurchases, warehouse, setWarehouse, categories, setCategories } = useAppContext();
+  const { items, setItems, markets, setMarkets, purchases, setPurchases, categories, setCategories } = useAppContext();
 
   const [view, setView] = useState<"list" | "new" | "detail" | "import">(initialLines ? "new" : "list");
   const [selected, setSelected] = useState<Purchase | null>(null);
@@ -164,38 +164,14 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
   function removeLine(idx: number) { setForm({ ...form, lines: form.lines.filter((_, i) => i !== idx) }); }
 
-  function applyPurchaseToWarehouse(lines: PurchaseLine[], base: WarehouseItem[]): WarehouseItem[] {
-    const wh = [...base];
-    lines.forEach(line => {
-      const qty = line.totalQty ?? line.numPkgs;
-      const idx = wh.findIndex(w => w.itemId === line.itemId);
-      if (idx >= 0) { wh[idx] = { ...wh[idx], stock: (wh[idx].stock || 0) + qty, purchased: (wh[idx].purchased || 0) + qty }; }
-      else { wh.push({ id: uid(), itemId: line.itemId, stock: qty, purchased: qty, entries: [] }); }
-    });
-    return wh;
-  }
-
-  function reverseWarehouseFromPurchase(lines: PurchaseLine[], base: WarehouseItem[]): WarehouseItem[] {
-    const wh = [...base];
-    lines.forEach(line => {
-      const qty = line.totalQty ?? line.numPkgs;
-      const idx = wh.findIndex(w => w.itemId === line.itemId);
-      if (idx >= 0) { wh[idx] = { ...wh[idx], stock: Math.max(0, (wh[idx].stock || 0) - qty), purchased: Math.max(0, (wh[idx].purchased || 0) - qty) }; }
-    });
-    return wh;
-  }
-
   function savePurchase() {
     if (!form.date || !form.marketId || form.lines.length === 0) return;
     const total = form.lines.reduce((s, l) => s + l.total, 0);
     if (editingPurchase) {
-      const reversed = reverseWarehouseFromPurchase(editingPurchase.lines, warehouse);
-      setWarehouse(applyPurchaseToWarehouse(form.lines, reversed));
       setPurchases(purchases.map(p => p.id === editingPurchase.id ? { ...p, ...form, total } : p));
       setEditingPurchase(null);
     } else {
       const p: Purchase = { id: uid(), ...form, total };
-      setWarehouse(applyPurchaseToWarehouse(form.lines, warehouse));
       setPurchases([...purchases, p]);
       if (onCreatedFromList) onCreatedFromList();
       else onPurchaseSaved?.();
@@ -221,8 +197,6 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
   function doDelete() {
     if (!deleteTarget) return;
-    const p = purchases.find(x => x.id === deleteTarget);
-    if (p) setWarehouse(reverseWarehouseFromPurchase(p.lines, warehouse));
     setPurchases(purchases.filter(p => p.id !== deleteTarget));
     setDeleteTarget(null);
     setView("list");

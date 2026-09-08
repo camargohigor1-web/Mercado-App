@@ -52,6 +52,8 @@ interface AppState {
   markets: Market[];
   purchases: Purchase[];
   list: ShoppingListEntry[];
+  // Mantido apenas para compatibilidade com backups e dados antigos.
+  // Novas compras e os indicadores de hábitos não atualizam nem leem este campo.
   warehouse: WarehouseItem[];
   categories: string[];
   theme: string;

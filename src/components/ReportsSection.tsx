@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { Empty, StatBox, BarChart, LineChart } from "./ui";
 import type { LineChartPoint } from "./ui";
 import { CategoryPills } from "./ShoppingListSection";
-import { fmt, fmtN, getLowStockItems, calcStats, getDisplayFactor, getDisplayUnit } from "../utils";
+import { fmt, fmtN, calcStats, getDisplayFactor, getDisplayUnit } from "../utils";
 import { MarketComparison } from "./MarketComparison";
 
 interface ReportsSectionProps {
@@ -27,7 +27,7 @@ export interface ReportsViewState {
 
 export function ReportsSection({ initialMonth, viewState, onViewStateChange, onGoToHistoryItem }: ReportsSectionProps) {
   const { isDark } = useTheme();
-  const { items, markets, purchases, warehouse } = useAppContext();
+  const { items, markets, purchases } = useAppContext();
 
   const { mainTab, dateFrom, dateTo, selectedCategory, expandedPriceItemId, productSearch } = viewState;
   const updateViewState = (patch: Partial<ReportsViewState>) => onViewStateChange(prev => ({ ...prev, ...patch }));
@@ -111,8 +111,6 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
   const prevMonthSpend = sortedMonths.length >= 2 ? monthlyMap[sortedMonths[sortedMonths.length - 2]] : null;
   const trendPct = prevMonthSpend && prevMonthSpend > 0 ? ((lastMonthSpend - prevMonthSpend) / prevMonthSpend) * 100 : null;
 
-  const lowStockItems = getLowStockItems(items, purchases, warehouse);
-
   const catMap: Record<string, number> = {};
   filtered.forEach(p => p.lines.forEach(l => { const it = getItem(l.itemId); const cat = it?.category || "Outro"; catMap[cat] = (catMap[cat] || 0) + l.total; }));
   const catData = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
@@ -150,13 +148,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
   const productPriceDetails = Array.from(categoryProductIds).flatMap(id => {
     const item = getItem(id);
     if (!item) return [];
-    const w = warehouse.find(w2 => w2.itemId === id);
-    const filteredWarehouseEntries = (w?.entries || []).filter(e => {
-      if (dateFrom && e.date < dateFrom) return false;
-      if (dateTo && e.date > dateTo) return false;
-      return true;
-    });
-    const stats = calcStats(id, items, filtered, filteredWarehouseEntries);
+    const stats = calcStats(id, items, filtered, []);
     if (!stats) return [];
     const factor = getDisplayFactor(item);
     const isUnit = item.type === "bulk";
@@ -392,7 +384,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
                           <div className={`border-t px-4 pb-4 pt-3 space-y-3 animate-fade-slide-up ${isDark ? "border-slate-800" : "border-slate-100"}`}>
                             <div className="grid grid-cols-2 gap-2">
                               <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}>
-                                <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Consumo medio/mes</p>
+                                <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Média comprada/mês</p>
                                 <p className={`text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                                   {isUnit ? `${fmtN(avgMonthly, 2)} ${du}` : `${fmtN(avgMonthly, 1)} emb`}
                                 </p>
@@ -513,25 +505,6 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
           {marketData.length > 1 && <div className={card}><p className={lbl}>Total por mercado</p><BarChart data={marketData} colorClass="bg-amber-500" formatValue={fmt} /></div>}
           {productData.length > 0 && <div className={card}><p className={lbl}>Produtos com maior gasto</p><BarChart data={productData} colorClass="bg-teal-400" formatValue={fmt} /></div>}
           {freqData.length > 0 && <div className={card}><p className={lbl}>Produtos mais comprados (frequência)</p><BarChart data={freqData} colorClass="bg-blue-400" formatValue={(v: number) => `${v}x`} /></div>}
-          {lowStockItems.length > 0 && (
-            <div className={card}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center"><Icon name="warn" size={12} /></div>
-                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Alertas de estoque baixo</p>
-              </div>
-              <div className="space-y-2">
-                {lowStockItems.map(({ item, stock, daysLeft, unit }) => (
-                  <div key={item.id} className={`flex items-center justify-between px-3 py-2 ${isDark ? "bg-red-500/5 border-red-500/20" : "bg-red-50 border-red-200"} border rounded-xl`}>
-                    <div>
-                      <p className={`text-sm font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</p>
-                      <p className={`text-xs ${sub}`}>{fmtN(stock, item.type === "packaged" ? 0 : 2)} {unit} em estoque</p>
-                    </div>
-                    <span className="bg-red-500/15 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-lg">~{daysLeft}d</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

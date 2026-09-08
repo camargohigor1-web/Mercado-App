@@ -20,7 +20,7 @@ interface HistorySectionProps {
 
 export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialItemId }: HistorySectionProps) {
   const { isDark } = useTheme();
-  const { items, markets, purchases, warehouse } = useAppContext();
+  const { items, markets, purchases } = useAppContext();
 
   const initialPurchase = initialPurchaseId ? purchases.find(p => p.id === initialPurchaseId) ?? null : null;
   const [search, setSearch] = useState("");
@@ -30,8 +30,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
     if (!initialItemId) return null;
     const item = items.find(i => i.id === initialItemId) ?? null;
     if (!item) return null;
-    const wh = warehouse.find(w => w.itemId === initialItemId);
-    const stats = calcStats(item.id, items, purchases, wh?.entries || []);
+    const stats = calcStats(item.id, items, purchases, []);
     return stats ? { item, stats } : null;
   });
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(initialPurchase);
@@ -66,7 +65,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   const getItem = (id: string) => items.find(i => i.id === id);
 
   const withStats = items
-    .map(item => ({ item, stats: calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) }))
+    .map(item => ({ item, stats: calcStats(item.id, items, purchases, []) }))
     .filter(({ stats }) => stats !== null)
     .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
     .filter(({ item }) => !filterCat || item.category === filterCat);
@@ -134,7 +133,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   // All available categories for pills
   const allCategories = [...new Set(
     items
-      .filter(item => calcStats(item.id, items, purchases, warehouse.find(w => w.itemId === item.id)?.entries ?? []) !== null)
+      .filter(item => calcStats(item.id, items, purchases, []) !== null)
       .map(item => item.category || "Sem categoria")
   )].sort();
 
@@ -164,12 +163,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       if (historyDateTo && p.date > historyDateTo) return false;
       return p.lines.some(l => l.itemId === item.id);
     });
-    const warehouseEntriesInPeriod = (warehouse.find(w => w.itemId === item.id)?.entries ?? []).filter(e => {
-      if (historyDateFrom && e.date < historyDateFrom) return false;
-      if (historyDateTo && e.date > historyDateTo) return false;
-      return true;
-    });
-    const periodStats = calcStats(item.id, items, purchasesInPeriod, warehouseEntriesInPeriod);
+    const periodStats = calcStats(item.id, items, purchasesInPeriod, []);
 
     const chronoEntries = [...visibleEntries].sort((a, b) => a.date.localeCompare(b.date));
     const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
@@ -217,14 +211,14 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
 
         {periodStats && item.type === "bulk" ? (
           <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Consumo médio/mês" val={`${fmtN(periodStats.avgMonthly * factor, 2)} ${du}`} />
+            <StatBox label="Média comprada/mês" val={`${fmtN(periodStats.avgMonthly * factor, 2)} ${du}`} />
             <StatBox label={`Preço médio/${du}`} val={fmt(periodStats.avgPrice / factor)} color="green" />
             <StatBox label={`Menor preço/${du}`} val={fmt(periodStats.minPrice / factor)} color="teal" />
             <StatBox label={`Último preço/${du}`} val={fmt(periodStats.lastPrice / factor)} color="blue" />
           </div>
         ) : periodStats ? (
           <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Consumo médio/mês" val={`${fmtN(periodStats.avgMonthly, 1)} emb`} />
+            <StatBox label="Média comprada/mês" val={`${fmtN(periodStats.avgMonthly, 1)} emb`} />
             <StatBox label="Preço médio/emb" val={fmt(periodStats.avgPrice)} color="green" />
             <StatBox label="Menor preço/emb" val={fmt(periodStats.minPrice)} color="teal" />
             <StatBox label="Último preço/emb" val={fmt(periodStats.lastPrice)} color="blue" />
@@ -377,7 +371,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
               <Card key={i} className={`highlight-fadeable${isHighlighted ? " highlighted-item" : ""}`}>
                 <div id={`item-${l.itemId}`} className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
-                    const stats = calcStats(it.id, items, purchases, warehouse.find(w => w.itemId === it.id)?.entries ?? []);
+                    const stats = calcStats(it.id, items, purchases, []);
                     setReturnToPurchase(selectedPurchase); setSelectedPurchase(null); setSelectedItem({ item: it, stats });
                   }}>
                     <p className={`${isDark ? "text-slate-100 hover:text-teal-400" : "text-slate-900 hover:text-teal-600"} text-sm font-semibold transition-colors`}>{it.name}</p>
@@ -501,7 +495,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                         <div className="flex-1 min-w-0">
                           <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>{item.name}</p>
                           <div className="flex gap-3 mt-1.5 flex-wrap">
-                            <span className="text-xs text-slate-500">Consumo: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{item.type === "bulk" ? `${fmtN(stats.avgMonthly * factor, 2)} ${du2}/mês` : `${fmtN(stats.avgMonthly, 1)} emb/mês`}</span></span>
+                            <span className="text-xs text-slate-500">Média comprada: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{item.type === "bulk" ? `${fmtN(stats.avgMonthly * factor, 2)} ${du2}/mês` : `${fmtN(stats.avgMonthly, 1)} emb/mês`}</span></span>
                             <span className="text-xs text-slate-500">Médio: <span className="text-green-400 font-semibold">{item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du2}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
                           </div>
                         </div>

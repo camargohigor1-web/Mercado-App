@@ -128,7 +128,7 @@ export function BackupSection({ onRestore }: BackupSectionProps) {
     { label: "Mercados", val: currentSummary.markets },
     { label: "Compras", val: currentSummary.purchases },
     { label: "Na lista", val: currentSummary.activeList },
-    { label: "Armazém", val: currentSummary.warehouseItems },
+    { label: "Estoque legado", val: currentSummary.warehouseItems },
     { label: "Categorias", val: categories.length },
   ];
 
@@ -301,7 +301,7 @@ export function BackupSection({ onRestore }: BackupSectionProps) {
               {exportedAt && <p className="text-xs text-slate-500 mb-3">Exportado em: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{exportedAt}</span></p>}
               <div className="grid grid-cols-3 gap-2">
                 {pendingSummary && Object.entries(pendingSummary).map(([key, val]) => {
-                  const labels: Record<string, string> = { items: "Produtos", markets: "Mercados", purchases: "Compras", activeList: "Na lista", warehouseItems: "Armazém" };
+                  const labels: Record<string, string> = { items: "Produtos", markets: "Mercados", purchases: "Compras", activeList: "Na lista", warehouseItems: "Estoque legado" };
                   return (
                     <div key={key} className={`${isDark ? "bg-slate-800/60" : "bg-slate-100"} rounded-xl p-2.5 text-center`}>
                       <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-black text-lg`}>{val as number}</p>
