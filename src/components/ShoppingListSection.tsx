@@ -313,9 +313,10 @@ const QuickAddItem = memo(function QuickAddItem({
 // ─── PlanItemCard ───────────────────────────────────────────────────────────
 // Expanding is informational; only the explicit + action changes the shopping list.
 const PlanItemCard = memo(function PlanItemCard({
-  item, stats, isDark, isExpanded, onExpand, onAdd, onCompare,
+  item, stats, habit, isDark, isExpanded, onExpand, onAdd, onCompare,
 }: {
   item: Item; stats: ReturnType<typeof calcStats>; isDark: boolean; isExpanded: boolean;
+  habit: ReturnType<typeof calcPurchaseHabitStats>;
   onExpand: () => void; onAdd: () => void; onCompare: () => void;
 }) {
   const factor = getDisplayFactor(item);
@@ -366,6 +367,11 @@ const PlanItemCard = memo(function PlanItemCard({
               </div>)}
             </div>
           ) : <p className={`text-xs text-center py-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico de preços ainda</p>}
+          {habit && (
+            <p className={`text-[10px] mt-2 ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+              Sua média é <span className="font-bold text-teal-400">{fmtN(habit.avgQtyPerPurchase, 1)} emb</span> por compra · {fmtN(habit.purchasesPerMonth, 1)}x/mês
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -862,7 +868,7 @@ export function ShoppingListSection({
                     {catItems.map((item) => {
                       const s = statsCache[item.id];
                       return (
-                        <PlanItemCard key={item.id} item={item} stats={s} isDark={isDark}
+                        <PlanItemCard key={item.id} item={item} stats={s} habit={habitCache[item.id] || null} isDark={isDark}
                           isExpanded={expandedPlanId === item.id}
                           onExpand={() => setExpandedPlanId(expandedPlanId === item.id ? null : item.id)}
                           onAdd={() => addItem(item.id)} onCompare={() => openCompare(item)} />
@@ -945,6 +951,9 @@ export function ShoppingListSection({
                         const avgPrice = stats
                           ? it.type === "bulk" ? stats.avgPrice / factor : stats.avgPrice
                           : null;
+                        const suggestedQty = habitCache[itemId]
+                          ? Math.max(1, Math.round(habitCache[itemId]!.avgQtyPerPurchase))
+                          : null;
                         return (
                           <div key={itemId} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
                             done
@@ -963,6 +972,12 @@ export function ShoppingListSection({
                               </p>
                               {avgPrice !== null && !done && (
                                 <p className="text-[10px] text-green-400">Médio {fmt(avgPrice)}/{it.type === "bulk" ? du : "emb"}</p>
+                              )}
+                              {suggestedQty !== null && !done && suggestedQty !== qty && (
+                                <button onClick={() => updateQty(itemId, suggestedQty)}
+                                  className={`mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${isDark ? "bg-teal-500/10 text-teal-400 hover:bg-teal-500/20" : "bg-teal-50 text-teal-700 hover:bg-teal-100"}`}>
+                                  Usar média: {suggestedQty} emb
+                                </button>
                               )}
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">

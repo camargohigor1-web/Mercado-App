@@ -14,7 +14,6 @@ import { SyncIndicator } from "./components/SyncIndicator"; // ◄ IMPORTADO AQU
 const HomeSection      = lazy(() => import("./components/HomeSection").then(m => ({ default: m.HomeSection })));
 const ShoppingListSection = lazy(() => import("./components/ShoppingListSection").then(m => ({ default: m.ShoppingListSection })));
 const HistorySection   = lazy(() => import("./components/HistorySection").then(m => ({ default: m.HistorySection })));
-const PurchaseHabitsSection = lazy(() => import("./components/PurchaseHabitsSection").then(m => ({ default: m.PurchaseHabitsSection })));
 const PurchasesSection = lazy(() => import("./components/PurchasesSection").then(m => ({ default: m.PurchasesSection })));
 const ItemsSection     = lazy(() => import("./components/ItemsSection").then(m => ({ default: m.ItemsSection })));
 const MarketsSection   = lazy(() => import("./components/MarketsSection").then(m => ({ default: m.MarketsSection })));
@@ -28,7 +27,6 @@ const TITLES: Record<string, string> = {
   shopping:  "Lista de Compras",
   purchases: "Compras",
   history:   "Histórico",
-  warehouse: "Hábitos de compra",
   items:     "Produtos",
   markets:   "Mercados",
   backup:    "Backup",
@@ -229,11 +227,12 @@ function AppInner() {
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
                   onGoToHistory={() => setTab("history")}
-                  onGoToHabits={() => setTab("warehouse")}
+                  onGoToHabits={() => setTab("history")}
                   onGoToItems={() => setTab("items")}
                   onRepeatPurchase={handleRepeatPurchase}
                   onGoToReports={handleGoToReports}
                   onGoToHistoryPurchase={handleGoToHistoryPurchase}
+                  onGoToHistoryItem={handleGoToHistoryItem}
                 />
               )}
               {tab === "shopping" && (
@@ -253,9 +252,6 @@ function AppInner() {
                   initialHighlightedProductId={highlightedProductId}
                   onNavigateAway={() => { setOpenPurchaseId(undefined); setHighlightedProductId(undefined); setOpenItemId(undefined); }}
                 />
-              )}
-              {tab === "warehouse" && (
-                <PurchaseHabitsSection />
               )}
               {tab === "purchases" && (
                 <PurchasesSection
@@ -315,8 +311,7 @@ function AppInner() {
               </span>
             </div>
 
-            <NavTab id="warehouse" label="Hábitos"   icon="trend" active={tab==="warehouse"} isDark={isDark} onClick={() => navigateTo("warehouse")} />
-
+            <NavTab id="purchases" label="Comprar" icon="cart" active={tab==="purchases"} isDark={isDark} onClick={() => navigateTo("purchases")} />
             <NavTab id="reports" label="Relatório" icon="chart" active={tab==="reports"} isDark={isDark} onClick={() => navigateTo("reports")} />
 
           </div>

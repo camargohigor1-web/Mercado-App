@@ -45,6 +45,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   const [returnToPurchase, setReturnToPurchase] = useState<Purchase | null>(null);
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
+  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("habits");
 
   const closeSelectedItem = useBrowserBackClose(selectedItem !== null, () => {
     setSelectedItem(null);
@@ -65,6 +66,10 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
       return () => clearTimeout(t);
     }
   }, [highlightedProductId, selectedPurchase]);
+
+  useEffect(() => {
+    if (selectedItem) setProductDetailTab("habits");
+  }, [selectedItem?.item.id]);
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
   const getItem = (id: string) => items.find(i => i.id === id);
@@ -175,6 +180,11 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
     });
     const periodStats = calcStats(item.id, items, purchasesInPeriod, []);
     const periodHabit = calcPurchaseHabitStats(item.id, item, purchases, historyDateFrom || undefined, historyDateTo || undefined);
+    const habitMonthlyData = periodHabit?.months.map(month => ({
+      label: new Date(`${month.key}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+      value: item.type === "bulk" ? month.qty * factor : month.qty * (item.pkgSize || 1),
+      sub: `${month.purchases} compra${month.purchases !== 1 ? "s" : ""} · ${fmt(month.spent)}`,
+    })) ?? [];
 
     const chronoEntries = [...visibleEntries].sort((a, b) => a.date.localeCompare(b.date));
     const priceEvolution: LineChartPoint[] = chronoEntries.map(e => ({
@@ -220,7 +230,40 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
           </div>
         </div>
 
-        {periodStats && item.type === "bulk" ? (
+        <div className={`flex gap-1 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
+          {([ ["habits", "Hábitos"], ["prices", "Preços e compras"] ] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setProductDetailTab(id)}
+              className={`flex-1 py-2 text-[10px] font-black rounded-lg transition-all ${productDetailTab === id ? "bg-teal-500 text-white shadow-sm" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {productDetailTab === "habits" && periodHabit && (
+          <>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Seus hábitos {periodLabel}</p>
+              <div className="grid grid-cols-3 gap-2">
+                <StatBox label="Média/mês" val={habitQuantity(item, periodHabit.avgMonthlyQty, periodHabit.avgMonthlyInternalQty, factor)} color="teal" />
+                <StatBox label="Por compra" val={habitQuantity(item, periodHabit.avgQtyPerPurchase, periodHabit.avgInternalQtyPerPurchase, factor)} color="green" />
+                <StatBox label="Frequência" val={`${fmtN(periodHabit.purchasesPerMonth, 1)}x/mês`} color="blue" />
+              </div>
+            </div>
+            {habitMonthlyData.length > 0 && (
+              <Card>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Quantidade comprada por mês</p>
+                <BarChart data={habitMonthlyData} colorClass="bg-teal-500" formatValue={value => item.type === "bulk" ? `${fmtN(value, 2)} ${du}` : `${fmtN(value, 0)} ${item.pkgUnit || "un"}`} />
+              </Card>
+            )}
+            <Card>
+              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Período analisado</p>
+              <p className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{new Date(`${periodHabit.firstPurchaseDate}T12:00:00`).toLocaleDateString("pt-BR")} até {new Date(`${periodHabit.lastPurchaseDate}T12:00:00`).toLocaleDateString("pt-BR")}</p>
+              <p className="text-xs text-slate-500 mt-1">{periodHabit.purchaseCount} compras · {fmt(periodHabit.avgMonthlySpent)}/mês em média</p>
+            </Card>
+          </>
+        )}
+
+        {productDetailTab === "prices" && (periodStats && item.type === "bulk" ? (
           <div className="grid grid-cols-2 gap-2">
             <StatBox label="Média comprada/mês" val={`${fmtN(periodStats.avgMonthly * factor, 2)} ${du}`} />
             <StatBox label={`Preço médio/${du}`} val={fmt(periodStats.avgPrice / factor)} color="green" />
@@ -234,27 +277,16 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
             <StatBox label="Menor preço/emb" val={fmt(periodStats.minPrice)} color="teal" />
             <StatBox label="Último preço/emb" val={fmt(periodStats.lastPrice)} color="blue" />
           </div>
-        ) : null}
+        ) : null)}
 
-        {periodHabit && (
-          <div>
-            <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Seus hábitos {periodLabel}</p>
-            <div className="grid grid-cols-3 gap-2">
-              <StatBox label="Média/mês" val={habitQuantity(item, periodHabit.avgMonthlyQty, periodHabit.avgMonthlyInternalQty, factor)} color="teal" />
-              <StatBox label="Por compra" val={habitQuantity(item, periodHabit.avgQtyPerPurchase, periodHabit.avgInternalQtyPerPurchase, factor)} color="green" />
-              <StatBox label="Frequência" val={`${fmtN(periodHabit.purchasesPerMonth, 1)}x/mês`} color="blue" />
-            </div>
-          </div>
-        )}
-
-        {visibleEntries.length > 0 && (
+        {productDetailTab === "prices" && visibleEntries.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
             <StatBox label={`Qtd comprada ${periodLabel}`} val={item.type === "bulk" ? `${fmtN(totalQtyInPeriod, 2)} ${du}` : `${fmtN(totalQtyInPeriod, 0)} emb`} color="blue" />
             <StatBox label={`Total gasto ${periodLabel}`} val={fmt(totalSpentInPeriod)} color="teal" />
           </div>
         )}
 
-        {priceEvolution.length >= 2 && (
+        {productDetailTab === "prices" && priceEvolution.length >= 2 && (
           <Card>
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">
               Evolução de preço ({item.type === "bulk" ? `R$/${du}` : "R$/emb"})
@@ -263,7 +295,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
           </Card>
         )}
 
-        {byMarket.length > 1 && (
+        {productDetailTab === "prices" && byMarket.length > 1 && (
           <Card>
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Preço médio por mercado</p>
             <BarChart data={byMarket.map(m => ({ label: m.marketName, value: item.type === "bulk" ? m.avgPrice / factor : m.avgPrice, sub: `${m.count} compra${m.count > 1 ? "s" : ""}` }))} colorClass="bg-blue-500" formatValue={fmt} />
@@ -307,11 +339,11 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
           </div>
         </Card>
 
-        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+        {productDetailTab === "prices" && <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
           {visibleEntries.length} de {allEntries.length} registro(s)
-        </p>
+        </p>}
 
-        <div className="space-y-2">
+        {productDetailTab === "prices" && <div className="space-y-2">
           {visibleEntries.length === 0 ? (
             <Empty icon="history" title="Nenhum registro no período" />
           ) : visibleEntries.map((e, i) => (
@@ -355,7 +387,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
               </div>
             </Card>
           ))}
-        </div>
+        </div>}
       </div>
     );
   }
@@ -453,7 +485,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   return (
     <div className="space-y-4">
       <div className={`flex gap-2 ${isDark ? "bg-slate-900" : "bg-slate-100"} rounded-xl p-1`}>
-        {[{ id: "products", label: "Produtos" }, { id: "purchases", label: "Compras" }].map(t => (
+        {[{ id: "products", label: "Hábitos" }, { id: "purchases", label: "Compras" }].map(t => (
           <button key={t.id} onClick={() => { setSubTab(t.id as "products" | "purchases"); setSearch(""); setFilterCat(""); }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${subTab === t.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>
             {t.label}

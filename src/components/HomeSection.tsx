@@ -14,6 +14,7 @@ interface HomeSectionProps {
   onRepeatPurchase: (purchase: Purchase) => void;
   onGoToReports: (month: string) => void;
   onGoToHistoryPurchase: (purchaseId: string) => void;
+  onGoToHistoryItem: (itemId: string) => void;
 }
 
 function cap(str: string) { return str.charAt(0).toUpperCase() + str.slice(1); }
@@ -179,7 +180,7 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 
 export function HomeSection({
   onGoToNewPurchase, onGoToHabits, onGoToItems,
-  onRepeatPurchase, onGoToReports, onGoToHistoryPurchase,
+  onRepeatPurchase, onGoToReports, onGoToHistoryPurchase, onGoToHistoryItem,
 }: HomeSectionProps) {
   const { isDark } = useTheme();
   const { items, markets, purchases, list } = useAppContext();
@@ -330,7 +331,7 @@ export function HomeSection({
             <p className={`text-xs ${sub} mb-3`}>Produtos comprados com mais frequência</p>
             <div className="space-y-2.5">
               {habitPreview.map(({ item, stats }, index) => (
-                <button key={item.id} onClick={onGoToHabits} className="w-full flex items-center gap-3 text-left">
+                <button key={item.id} onClick={() => onGoToHistoryItem(item.id)} className="w-full flex items-center gap-3 text-left">
                   <span className="w-5 text-xs font-black text-teal-400">{index + 1}</span>
                   <span className={`flex-1 text-sm font-semibold truncate ${ttl}`}>{item.name}</span>
                   <span className="text-xs text-slate-500">{stats.purchaseCount}x</span>
