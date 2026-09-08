@@ -66,6 +66,26 @@ export function PurchaseHabitsSection() {
   const card = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
   const label = `text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`;
 
+  const quickPeriods = [
+    { id: "month", label: "Este mês" }, { id: "90d", label: "3m" },
+    { id: "180d", label: "6m" }, { id: "365d", label: "1a" }, { id: "all", label: "Tudo" },
+  ] as const;
+
+  function getQuickRange(id: (typeof quickPeriods)[number]["id"]) {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    if (id === "all") return { from: "", to: "" };
+    if (id === "month") return { from: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, to: today };
+    const days = Number.parseInt(id, 10);
+    const from = new Date(now); from.setDate(now.getDate() - days + 1);
+    return { from: from.toISOString().slice(0, 10), to: today };
+  }
+
+  function isQuickPeriodActive(id: (typeof quickPeriods)[number]["id"]) {
+    const range = getQuickRange(id);
+    return dateFrom === range.from && dateTo === range.to;
+  }
+
   if (selectedItem) {
     const stats = calcPurchaseHabitStats(selectedItem.id, selectedItem, purchases, dateFrom || undefined, dateTo || undefined);
     if (!stats) return <Empty icon="chart" title="Sem compras no período" sub="Ajuste o período para visualizar este produto." />;
@@ -135,6 +155,12 @@ export function PurchaseHabitsSection() {
       </div>
 
       <div className={card}>
+        <div className="mb-3">
+          <p className={`${label} mb-2`}>Período rápido</p>
+          <div className={`flex gap-1 p-1 rounded-xl ${isDark ? "bg-slate-950" : "bg-slate-100"}`}>
+            {quickPeriods.map(period => <button key={period.id} onClick={() => { const range = getQuickRange(period.id); setDateFrom(range.from); setDateTo(range.to); }} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${isQuickPeriodActive(period.id) ? "bg-teal-500 text-white shadow-sm" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>{period.label}</button>)}
+          </div>
+        </div>
         <div className="relative">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar produto..." className={`w-full ${isDark ? "bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl pl-9 pr-8 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Icon name="search" size={14} /></span>

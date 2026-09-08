@@ -3,12 +3,13 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Badge } from "./ui";
-import { fmt } from "../utils";
+import { calcPurchaseHabitStats, fmt } from "../utils";
 import type { Purchase } from "../types";
 
 interface HomeSectionProps {
   onGoToNewPurchase: () => void;
   onGoToHistory: () => void;
+  onGoToHabits: () => void;
   onGoToItems: () => void;
   onRepeatPurchase: (purchase: Purchase) => void;
   onGoToReports: (month: string) => void;
@@ -177,7 +178,7 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 }
 
 export function HomeSection({
-  onGoToNewPurchase, onGoToItems,
+  onGoToNewPurchase, onGoToHabits, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase,
 }: HomeSectionProps) {
   const { isDark } = useTheme();
@@ -193,6 +194,11 @@ export function HomeSection({
   const isCurrentMonth = selectedMonth === currentMonth;
 
   const getMkt   = (id: string) => markets.find(m => m.id === id)?.name ?? "Mercado";
+  const habitPreview = items
+    .map(item => ({ item, stats: calcPurchaseHabitStats(item.id, item, purchases) }))
+    .filter((entry): entry is { item: typeof items[number]; stats: NonNullable<typeof entry.stats> } => entry.stats !== null)
+    .sort((a, b) => b.stats.purchaseCount - a.stats.purchaseCount || b.stats.totalSpent - a.stats.totalSpent)
+    .slice(0, 3);
 
   const card  = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
   const lbl   = `text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? "text-slate-500" : "text-slate-400"}`;
@@ -311,6 +317,29 @@ export function HomeSection({
           </div>
         </div>
       </div>
+
+      {habitPreview.length > 0 && (
+        <div className="animate-fade-slide-up stagger-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className={lbl}>Hábitos de compra</p>
+            <button onClick={onGoToHabits} className={`text-[10px] font-bold flex items-center gap-1 ${isDark ? "text-teal-400 hover:text-teal-300" : "text-teal-600 hover:text-teal-700"}`}>
+              Ver todos <Icon name="chevron" size={11} />
+            </button>
+          </div>
+          <div className={card}>
+            <p className={`text-xs ${sub} mb-3`}>Produtos comprados com mais frequência</p>
+            <div className="space-y-2.5">
+              {habitPreview.map(({ item, stats }, index) => (
+                <button key={item.id} onClick={onGoToHabits} className="w-full flex items-center gap-3 text-left">
+                  <span className="w-5 text-xs font-black text-teal-400">{index + 1}</span>
+                  <span className={`flex-1 text-sm font-semibold truncate ${ttl}`}>{item.name}</span>
+                  <span className="text-xs text-slate-500">{stats.purchaseCount}x</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="animate-fade-slide-up stagger-3">
         <p className={`${lbl} mb-2.5`}>Por categoria — {cap(monthLabel(selectedMonth))}</p>

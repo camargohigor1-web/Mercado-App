@@ -229,6 +229,7 @@ function AppInner() {
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
                   onGoToHistory={() => setTab("history")}
+                  onGoToHabits={() => setTab("warehouse")}
                   onGoToItems={() => setTab("items")}
                   onRepeatPurchase={handleRepeatPurchase}
                   onGoToReports={handleGoToReports}
