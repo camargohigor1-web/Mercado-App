@@ -1,18 +1,18 @@
---- pristine/Mercado-App-main/src/components/HistorySection.tsx	2026-09-08 16:37:29.000000000 +0000
-+++ Mercado-App-main/src/components/HistorySection.tsx	2026-09-13 16:13:13.318539636 +0000
-@@ -7,7 +7,7 @@
+--- a/src/components/HistorySection.tsx
++++ b/src/components/HistorySection.tsx
+@@ -7,7 +7,7 @@ import { Card, Badge, Btn, Inp, Sel, Modal, InfoBox, StatBox, BarChart } from
  import type { LineChartPoint } from "./ui";
  import { CategoryPills } from "./ShoppingListSection";
  import { fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 -import type { Item, Purchase } from "../types";
 +import type { Item, ItemStats, Purchase } from "../types";
- 
+
  interface HistorySectionProps {
    onGoToNewPurchase?: () => void;
-@@ -23,6 +23,25 @@
+@@ -23,6 +23,25 @@ function habitQuantity(item: Item, qty: number, internalQty: number | null, fa
    return item.type === "bulk" ? `${fmtN(qty * factor, 2)} ${getDisplayUnit(item)}` : `${fmtN(qty, 1)} emb`;
  }
- 
+
 +// Variação percentual entre o último preço registrado e o anterior (positivo = subiu, negativo = caiu).
 +function priceTrend(item: Item, stats: ItemStats | null): number | null {
 +  if (!stats || stats.entries.length < 2) return null;
@@ -22,7 +22,7 @@
 +  if (!prev) return null;
 +  return (last - prev) / prev;
 +}
-+
+
 +type QuickPeriod = "all" | "month" | "30d" | "3m" | "1y";
 +const QUICK_PERIODS: { id: QuickPeriod; label: string }[] = [
 +  { id: "all", label: "Tudo" },
@@ -31,16 +31,15 @@
 +  { id: "3m", label: "Últimos 3 meses" },
 +  { id: "1y", label: "Último ano" },
 +];
-+
+
  export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialItemId }: HistorySectionProps) {
    const { isDark } = useTheme();
    const { items, markets, purchases } = useAppContext();
-@@ -45,7 +64,23 @@
+@@ -45,7 +64,23 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initial
    const [returnToPurchase, setReturnToPurchase] = useState<Purchase | null>(null);
    const [historyDateFrom, setHistoryDateFrom] = useState("");
    const [historyDateTo, setHistoryDateTo] = useState("");
--  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("habits");
-+  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("prices");
+   const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("prices");
 +  const [quickPeriod, setQuickPeriod] = useState<QuickPeriod>("all");
 +
 +  function applyQuickPeriod(id: QuickPeriod) {
@@ -57,45 +56,38 @@
 +    const from = new Date(now); from.setDate(now.getDate() - daysAgo);
 +    setHistoryDateFrom(from.toISOString().slice(0, 10)); setHistoryDateTo(today);
 +  }
- 
+
    const closeSelectedItem = useBrowserBackClose(selectedItem !== null, () => {
      setSelectedItem(null);
-@@ -68,29 +103,49 @@
-   }, [highlightedProductId, selectedPurchase]);
- 
-   useEffect(() => {
--    if (selectedItem) setProductDetailTab("habits");
-+    if (selectedItem) setProductDetailTab("prices");
-   }, [selectedItem?.item.id]);
- 
+@@ -102,28 +137,48 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initial
    const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
    const getItem = (id: string) => items.find(i => i.id === id);
- 
+
 +  // Compras dentro do período selecionado pelos filtros rápidos (ou todo o histórico, se "Tudo").
 +  const purchasesInRange = useMemo(() => purchases.filter(p => {
 +    if (historyDateFrom && p.date < historyDateFrom) return false;
 +    if (historyDateTo && p.date > historyDateTo) return false;
 +    return true;
 +  }), [purchases, historyDateFrom, historyDateTo]);
-+
+
    // Hábitos são indicadores somente de leitura, derivados das compras existentes.
    const habitCache = useMemo(() => Object.fromEntries(items.map(item => [
      item.id, calcPurchaseHabitStats(item.id, item, purchases),
    ])), [items, purchases]) as Record<string, ReturnType<typeof calcPurchaseHabitStats>>;
- 
+
    const withStats = items
 -    .map(item => ({ item, stats: calcStats(item.id, items, purchases, []) }))
 +    .map(item => ({ item, stats: calcStats(item.id, items, purchasesInRange, []) }))
      .filter(({ stats }) => stats !== null)
      .filter(({ item }) => item.name.toLowerCase().includes(search.toLowerCase()))
      .filter(({ item }) => !filterCat || item.category === filterCat);
- 
+
    const lastPurchaseDateByItem: Record<string, string> = {};
 -  purchases.forEach(p => p.lines.forEach(l => {
 +  purchasesInRange.forEach(p => p.lines.forEach(l => {
      if (!lastPurchaseDateByItem[l.itemId] || p.date > lastPurchaseDateByItem[l.itemId]) lastPurchaseDateByItem[l.itemId] = p.date;
    }));
- 
+
 -  const sortedPurchases = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
 +  // Resumo geral do período: gasto total, nº de compras, ticket médio e top produtos por gasto.
 +  const periodTotalSpent = purchasesInRange.reduce((sum, p) => sum + p.total, 0);
@@ -114,10 +106,10 @@
    const filteredPurchases = sortedPurchases.filter(p => {
      const query = search.toLowerCase();
      const mktName = getMkt(p.marketId).toLowerCase();
-@@ -493,6 +548,35 @@
+@@ -493,6 +548,35 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initial
          ))}
        </div>
- 
+
 +      {/* Filtros rápidos de período — afetam a lista de produtos, a de compras e o resumo abaixo */}
 +      <div className="flex gap-1.5 flex-wrap">
 +        {QUICK_PERIODS.map(opt => (
@@ -146,11 +138,10 @@
 +          )}
 +        </Card>
 +      )}
-+
+
        <input value={search} onChange={e => setSearch(e.target.value)}
          placeholder={subTab === "products" ? "Buscar produto..." : "Buscar mercado ou data..."}
-         className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
-@@ -544,18 +628,39 @@
+@@ -544,18 +628,39 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initial
                    const factor = getDisplayFactor(item);
                    const du2 = getDisplayUnit(item);
                    const habit = habitCache[item.id];
@@ -167,22 +158,7 @@
 -                            <span className="text-xs text-slate-500">Média/mês: <span className={isDark ? "text-slate-300" : "text-slate-700"}>{habit ? habitQuantity(item, habit.avgMonthlyQty, habit.avgMonthlyInternalQty, factor) : item.type === "bulk" ? `${fmtN(stats.avgMonthly * factor, 2)} ${du2}` : `${fmtN(stats.avgMonthly, 1)} emb`}</span></span>
 -                            {habit && <span className="text-xs text-slate-500">{fmtN(habit.purchasesPerMonth, 1)}x/mês</span>}
 -                            <span className="text-xs text-slate-500">Médio: <span className="text-green-400 font-semibold">{item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du2}` : `${fmt(stats.avgPrice)}/emb`}</span></span>
-+                          <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm truncate`}>{item.name}</p>
-+                          <div className="flex gap-x-2 gap-y-0.5 mt-1 flex-wrap items-center text-[11px] text-slate-500">
-+                            {habit ? (
-+                              <span>{fmtN(habit.purchasesPerMonth, 1)}x/mês</span>
-+                            ) : (
-+                              <span>{habitQuantity(item, stats.avgMonthly, null, factor)}/mês</span>
-+                            )}
-+                            <span>·</span>
-+                            <span>Média {item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du2}` : `${fmt(stats.avgPrice)}/emb`}</span>
-+                            {lastDate && (
-+                              <>
-+                                <span>·</span>
-+                                <span>Últ. {new Date(lastDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</span>
-+                              </>
-+                            )}
-                           </div>
+                          </div>
                          </div>
 -                        <span className="text-slate-600 flex-shrink-0 ml-2"><Icon name="chevron" size={16} /></span>
 +                        <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
@@ -197,9 +173,9 @@
                        </div>
                      </Card>
                    );
-@@ -567,7 +672,7 @@
+@@ -567,7 +652,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initial
        )}
- 
+
        {subTab === "purchases" && (
 -        sortedPurchases.length === 0 ? (
 +        purchases.length === 0 ? (
