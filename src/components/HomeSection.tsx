@@ -7,6 +7,7 @@ import { calcPurchaseHabitStats, fmt } from "../utils";
 import type { Purchase } from "../types";
 
 interface HomeSectionProps {
+  onOpenCompare: () => void;
   onGoToNewPurchase: () => void;
   onGoToHistory: () => void;
   onGoToHabits: () => void;
@@ -179,6 +180,7 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 }
 
 export function HomeSection({
+  onOpenCompare,
   onGoToNewPurchase, onGoToHabits, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase, onGoToHistoryItem,
 }: HomeSectionProps) {

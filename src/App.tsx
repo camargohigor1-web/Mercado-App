@@ -1,3 +1,4 @@
+import { PriceCompareModal } from "./components/PriceCompareModal";
 import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { ThemeCtx } from "./hooks/useTheme";
 import { Icon } from "./components/Icon";
@@ -70,6 +71,7 @@ function AppInner() {
   const [openPurchaseId, setOpenPurchaseId] = useState<string | undefined>(undefined);
   const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
 
   // Listener de erro de storage
   useEffect(() => {
@@ -160,6 +162,7 @@ function AppInner() {
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      {compareModalOpen && <PriceCompareModal items={items} initialItem={null} onClose={() => setCompareModalOpen(false)} />}
 
       <div className={`min-h-screen ${bg} ${text} flex flex-col max-w-lg mx-auto relative`}>
 
@@ -226,6 +229,7 @@ function AppInner() {
               {tab === "home" && (
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
+                  onOpenCompare={() => setCompareModalOpen(true)}
                   onGoToHistory={() => setTab("history")}
                   onGoToHabits={() => setTab("history")}
                   onGoToItems={() => setTab("items")}
