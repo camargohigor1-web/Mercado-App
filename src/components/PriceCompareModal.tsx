@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
 import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox } from "./ui";
+import { MoneyInp } from "./MoneyInput";
 import { fmt, fmtN, getDisplayUnit } from "../utils";
 import type { Item } from "../types";
 
@@ -126,8 +127,8 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
             <Inp inputRef={sizeRef} label={`Qtd (${unit})`} type="number" value={newOption.size}
               onChange={(v) => setNewOption({ ...newOption, size: v })} placeholder="Ex: 500" min="0.001" step="0.001"
               onEnter={() => priceRef.current?.focus()} />
-            <Inp inputRef={priceRef} label="Preço (R$)" type="number" value={newOption.price}
-              onChange={(v) => setNewOption({ ...newOption, price: v })} placeholder="1,99" min="0.01" step="0.01"
+            <MoneyInp inputRef={priceRef} label="Preço (R$)" value={newOption.price}
+              onChange={(v) => setNewOption({ ...newOption, price: v })} placeholder="1,99"
               onEnter={addOption} />
           </div>
           <Btn onClick={addOption} className="w-full" size="sm"><Icon name="plus" size={13} />Adicionar opção</Btn>

@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
+import { MoneyInp } from "./MoneyInput";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
 import type { Item, Market, Purchase, PurchaseLine } from "../types";
 
@@ -576,9 +577,9 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                     onEnter={() => { if (isBulk && pkgQtyRef.current) pkgQtyRef.current.focus(); else if (priceRef.current) priceRef.current.focus(); }} />
                   {isBulk && <Inp inputRef={pkgQtyRef} label={`Qtd. de ${du} por emb.`} type="number" value={lf.pkgQty} onChange={v => setLf({ ...lf, pkgQty: v })} placeholder="Ex: 500" min="0.001" step="0.001" required
                     onEnter={() => { if (priceRef.current) priceRef.current.focus(); }} />}
-                  <Inp inputRef={priceRef} label="Preço por emb. (R$)" type="number" value={lf.pricePerPkg} onChange={v => setLf({ ...lf, pricePerPkg: v })} placeholder="0,00" min="0.01" step="0.01" required
+                  <MoneyInp inputRef={priceRef} label="Preço por emb. (R$)" value={lf.pricePerPkg} onChange={v => setLf({ ...lf, pricePerPkg: v })} placeholder="0,00" required
                     onEnter={() => { if (discountRef.current) discountRef.current.focus(); }} />
-                  <Inp inputRef={discountRef} label="Desconto total no item (R$)" type="number" value={lf.discount} onChange={v => setLf({ ...lf, discount: v })} placeholder="0,00 (opcional)" min="0" step="0.01"
+                  <MoneyInp inputRef={discountRef} label="Desconto total no item (R$)" value={lf.discount} onChange={v => setLf({ ...lf, discount: v })} placeholder="0,00 (opcional)"
                     onEnter={() => { if (brandRef.current) brandRef.current.focus(); }} />
                   {canPreview && (
                     <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl px-4 py-3 space-y-1.5`}>
