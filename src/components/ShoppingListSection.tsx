@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
+import { PriceCompareModal } from "./PriceCompareModal";
 import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
@@ -406,12 +407,9 @@ export function ShoppingListSection({
   const [quickSearch, setQuickSearch] = useState("");
   const quickSearchRef = useRef<HTMLInputElement>(null);
 
-  // price compare (shared between plan + market)
+  // price compare (shared between plan + market) — implementação vive em PriceCompareModal
   const [compareItem, setCompareItem] = useState<Item | null>(null);
-  const [compareOptions, setCompareOptions] = useState<{ sizeNum: number; priceNum: number; unit: string }[]>([]);
-  const [newOption, setNewOption] = useState({ size: "", price: "" });
-  const cmpSizeRef = useRef<HTMLInputElement>(null);
-  const cmpPriceRef = useRef<HTMLInputElement>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   // modals
   const [saveModal, setSaveModal] = useState(false);
@@ -709,24 +707,8 @@ export function ShoppingListSection({
 
   // ── Price compare ──────────────────────────────────────────────────────────
   function openCompare(item: Item) {
-    setCompareItem(item); setCompareOptions([]); setNewOption({ size: "", price: "" });
+    setCompareItem(item); setCompareOpen(true);
   }
-
-  function addCompareOption() {
-    if (!newOption.size || !newOption.price || !compareItem) return;
-    const size = Number(newOption.size.replace(",", "."));
-    const price = Number(newOption.price.replace(",", "."));
-    if (size > 0 && price >= 0) {
-      setCompareOptions((prev) => [...prev, { sizeNum: size, priceNum: price, unit: getDisplayUnit(compareItem) }]);
-      setNewOption({ size: "", price: "" });
-      cmpSizeRef.current?.focus();
-    }
-  }
-
-  const bestOption = useMemo(() => {
-    if (!compareOptions.length) return null;
-    return compareOptions.map((o) => ({ ...o, ppu: o.priceNum / o.sizeNum })).reduce((a, b) => b.ppu < a.ppu ? b : a);
-  }, [compareOptions]);
 
   // ── Navigate ───────────────────────────────────────────────────────────────
   function handleNavigatePurchase(purchaseId: string, itemId: string) {
@@ -1203,53 +1185,10 @@ export function ShoppingListSection({
       ════════════════════════════════════════════════════════════════════ */}
 
       {/* Price Compare */}
-      {compareItem && (
-        <Modal title={`Comparar — ${compareItem.name}`} onClose={() => setCompareItem(null)}>
-          <div className="space-y-4">
-            <InfoBox color="blue">Compare tamanhos diferentes para o melhor custo-benefício por unidade.</InfoBox>
-            {compareOptions.length > 0 && (
-              <div className="space-y-2">
-                {compareOptions.map((opt, idx) => {
-                  const ppu = opt.priceNum / opt.sizeNum;
-                  const isBest = bestOption && Math.abs((bestOption as any).ppu - ppu) < 0.001;
-                  return (
-                    <Card key={idx} className={isBest ? "border-teal-500/50 bg-teal-500/5" : ""}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                              {fmtN(opt.sizeNum, 3).replace(/,?0+$/, "")} {opt.unit}
-                            </p>
-                            {isBest && <Badge color="teal">Melhor custo</Badge>}
-                          </div>
-                          <p className="text-xs text-slate-500">{fmt(opt.priceNum)} · <span className="text-teal-400 font-semibold">{fmt(ppu)}/{opt.unit}</span></p>
-                        </div>
-                        <button onClick={() => setCompareOptions(compareOptions.filter((_, i) => i !== idx))}
-                          className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}>
-                          <Icon name="trash" size={13} />
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-            <div className={`space-y-3 ${isDark ? "bg-slate-900/50" : "bg-slate-50"} rounded-xl p-3`}>
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Adicionar opção</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Inp inputRef={cmpSizeRef} label={`Qtd (${getDisplayUnit(compareItem)})`} type="number" value={newOption.size}
-                  onChange={(v) => setNewOption({ ...newOption, size: v })} placeholder="Ex: 500" min="0.001" step="0.001"
-                  onEnter={() => cmpPriceRef.current?.focus()} />
-                <Inp inputRef={cmpPriceRef} label="Preço (R$)" type="number" value={newOption.price}
-                  onChange={(v) => setNewOption({ ...newOption, price: v })} placeholder="1,99" min="0.01" step="0.01"
-                  onEnter={addCompareOption} />
-              </div>
-              <Btn onClick={addCompareOption} className="w-full" size="sm"><Icon name="plus" size={13} />Adicionar opção</Btn>
-            </div>
-            <Btn onClick={() => setCompareItem(null)} variant="secondary" className="w-full justify-center">Fechar</Btn>
-          </div>
-        </Modal>
+      {compareOpen && compareItem && (
+        <PriceCompareModal items={items} initialItem={compareItem} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
       )}
+
 
       {/* Save modal */}
       {saveModal && (

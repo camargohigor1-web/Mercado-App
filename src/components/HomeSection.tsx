@@ -226,6 +226,10 @@ export function HomeSection({
           className={`w-full py-3 rounded-2xl text-sm font-bold border transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
           Cadastrar produtos antes
         </button>
+        <button onClick={onOpenCompare}
+          className={`w-full py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
+          <Icon name="calculator" size={16} />Comparar preços
+        </button>
       </div>
     </div>
   );
@@ -242,6 +246,10 @@ export function HomeSection({
           <Icon name="plus" size={17} />
         </div>
         Nova compra
+      </button>
+      <button onClick={onOpenCompare}
+        className={`w-full py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
+        <Icon name="calculator" size={16} />Comparar preços
       </button>
       <div className={`rounded-2xl border p-4 ${isDark ? "bg-teal-500/8 border-teal-500/20" : "bg-teal-50 border-teal-200/60"}`}>
         <p className={`text-sm font-black ${isDark ? "text-teal-300" : "text-teal-700"}`}>Tudo pronto para sua primeira compra</p>
@@ -266,6 +274,10 @@ export function HomeSection({
             <Icon name="plus" size={17} />
           </div>
           Nova compra
+        </button>
+        <button onClick={onOpenCompare}
+          className={`w-full mt-2.5 py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
+          <Icon name="calculator" size={16} />Comparar preços
         </button>
       </div>
 
