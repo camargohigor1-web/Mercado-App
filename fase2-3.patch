@@ -1,0 +1,31 @@
+--- pristine/Mercado-App-main/src/App.tsx	2026-09-08 16:37:29.000000000 +0000
++++ Mercado-App-main/src/App.tsx	2026-09-13 16:07:36.045081007 +0000
+@@ -311,7 +311,7 @@
+               </span>
+             </div>
+ 
+-            <NavTab id="purchases" label="Comprar" icon="cart" active={tab==="purchases"} isDark={isDark} onClick={() => navigateTo("purchases")} />
++            <NavTab id="purchases" label="Compras" icon="cart" active={tab==="purchases"} isDark={isDark} onClick={() => navigateTo("purchases")} />
+             <NavTab id="reports" label="Relatório" icon="chart" active={tab==="reports"} isDark={isDark} onClick={() => navigateTo("reports")} />
+ 
+           </div>
+--- pristine/Mercado-App-main/src/components/HistorySection.tsx	2026-09-08 16:37:29.000000000 +0000
++++ Mercado-App-main/src/components/HistorySection.tsx	2026-09-13 16:07:42.281670588 +0000
+@@ -45,7 +45,7 @@
+   const [returnToPurchase, setReturnToPurchase] = useState<Purchase | null>(null);
+   const [historyDateFrom, setHistoryDateFrom] = useState("");
+   const [historyDateTo, setHistoryDateTo] = useState("");
+-  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("habits");
++  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("prices");
+ 
+   const closeSelectedItem = useBrowserBackClose(selectedItem !== null, () => {
+     setSelectedItem(null);
+@@ -68,7 +68,7 @@
+   }, [highlightedProductId, selectedPurchase]);
+ 
+   useEffect(() => {
+-    if (selectedItem) setProductDetailTab("habits");
++    if (selectedItem) setProductDetailTab("prices");
+   }, [selectedItem?.item.id]);
+ 
+   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";

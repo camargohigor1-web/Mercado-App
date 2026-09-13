@@ -311,7 +311,7 @@ function AppInner() {
               </span>
             </div>
 
-            <NavTab id="purchases" label="Comprar" icon="cart" active={tab==="purchases"} isDark={isDark} onClick={() => navigateTo("purchases")} />
+            <NavTab id="purchases" label="Compras" icon="cart" active={tab==="purchases"} isDark={isDark} onClick={() => navigateTo("purchases")} />
             <NavTab id="reports" label="Relatório" icon="chart" active={tab==="reports"} isDark={isDark} onClick={() => navigateTo("reports")} />
 
           </div>

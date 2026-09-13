@@ -45,7 +45,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   const [returnToPurchase, setReturnToPurchase] = useState<Purchase | null>(null);
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
-  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("habits");
+  const [productDetailTab, setProductDetailTab] = useState<"habits" | "prices">("prices");
 
   const closeSelectedItem = useBrowserBackClose(selectedItem !== null, () => {
     setSelectedItem(null);
@@ -68,7 +68,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   }, [highlightedProductId, selectedPurchase]);
 
   useEffect(() => {
-    if (selectedItem) setProductDetailTab("habits");
+    if (selectedItem) setProductDetailTab("prices");
   }, [selectedItem?.item.id]);
 
   const getMkt  = (id: string) => markets.find(m => m.id === id)?.name || "Mercado";
