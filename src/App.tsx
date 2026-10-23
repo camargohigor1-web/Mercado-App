@@ -251,6 +251,7 @@ function AppInner() {
                 <HistorySection
                   onGoToNewPurchase={handleGoToNewPurchase}
                   onRepeatPurchase={handleRepeatPurchase}
+                  onOpenCompare={() => setCompareModalOpen(true)}
                   initialPurchaseId={openPurchaseId}
                   initialItemId={openItemId}
                   initialHighlightedProductId={highlightedProductId}

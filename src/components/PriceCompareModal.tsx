@@ -3,7 +3,8 @@ import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
 import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox } from "./ui";
 import { MoneyInp } from "./MoneyInput";
-import { fmt, fmtN, getDisplayUnit } from "../utils";
+import { fmt, fmtN, getDisplayUnit, calcStats, getDisplayFactor } from "../utils";
+import { useAppContext } from "../context/AppContext";
 import type { Item } from "../types";
 
 const GENERIC_UNITS = [
@@ -22,6 +23,7 @@ interface PriceCompareModalProps {
 
 export function PriceCompareModal({ items, initialItem = null, onClose }: PriceCompareModalProps) {
   const { isDark } = useTheme();
+  const { purchases } = useAppContext();
   const [selectedItem, setSelectedItem] = useState<Item | null>(initialItem);
   const [itemSearch, setItemSearch] = useState("");
   const [genericUnit, setGenericUnit] = useState("un");
@@ -31,6 +33,9 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
   const priceRef = useRef<HTMLInputElement>(null);
 
   const unit = selectedItem ? getDisplayUnit(selectedItem) : genericUnit;
+  const itemStats = selectedItem ? calcStats(selectedItem.id, items, purchases, []) : null;
+  const priceFactor = selectedItem ? getDisplayFactor(selectedItem) : 1;
+  const historicalPrice = (value: number) => selectedItem?.type === "bulk" ? value / priceFactor : value;
 
   function pickItem(item: Item | null) {
     setSelectedItem(item);
@@ -63,6 +68,9 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
     <Modal title={selectedItem ? `Comparar — ${selectedItem.name}` : "Comparador de preços"} onClose={onClose}>
       <div className="space-y-4">
         <InfoBox color="blue">Compare tamanhos diferentes para o melhor custo-benefício por unidade.</InfoBox>
+        {selectedItem && <div className="grid grid-cols-3 gap-2">{[
+          { label: "Mínimo", value: itemStats?.minPrice }, { label: "Médio", value: itemStats?.avgPrice }, { label: "Último", value: itemStats?.lastPrice },
+        ].map(({label,value}) => <div key={label} className={`rounded-xl p-2.5 ${isDark ? "bg-slate-900" : "bg-slate-50"}`}><p className="text-[9px] font-bold uppercase text-slate-500">{label}</p><p className="mt-1 text-sm font-black">{value == null ? "—" : fmt(historicalPrice(value))}</p><p className="text-[9px] text-slate-500">/{selectedItem.type === "bulk" ? unit : "emb"}</p></div>)}</div>}
 
         <div className="space-y-2">
           <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Produto (opcional)</p>

@@ -53,12 +53,12 @@ export function CategoryPills({
 
 // ─── MarketItemCard ───────────────────────────────────────────────────────────
 const MarketItemCard = memo(function MarketItemCard({
-  itemId, item, stats, qty, isDark, isExpanded,
+  itemId, item, stats, qty, done = false, isDark, isExpanded,
   onToggle, onRemove, onExpand, onQtyChange,
   recentEntries, priceEvolution, habit, onNavigatePurchase, onCompare,
 }: {
   itemId: string; item: Item; stats: ReturnType<typeof calcStats>;
-  qty: number; isDark: boolean; isExpanded: boolean;
+  qty: number; done?: boolean; isDark: boolean; isExpanded: boolean;
   onToggle: () => void; onRemove: () => void; onExpand: () => void;
   onQtyChange: (val: number) => void; recentEntries: any[];
   priceEvolution: LineChartPoint[];
@@ -108,12 +108,12 @@ const MarketItemCard = memo(function MarketItemCard({
         <button onClick={onToggle}
           className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all active:scale-90 ${
             isDark ? "border-slate-600 hover:border-teal-400" : "border-slate-300 hover:border-teal-500"
-          }`}>
-          <div className={`w-2.5 h-2.5 rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />
+          } ${done ? "bg-teal-500 border-teal-500" : ""}`}>
+          {done ? <Icon name="check" size={12} /> : <div className={`w-2.5 h-2.5 rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />}
         </button>
 
         <button onClick={onExpand} className="flex-1 min-w-0 text-left">
-          <p className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}>{item.name}</p>
+          <p className={`text-sm font-bold truncate ${done ? "line-through text-slate-500" : isDark ? "text-slate-100" : "text-slate-900"}`}>{item.name}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {lastPrice !== null ? (
               <>
@@ -744,448 +744,56 @@ export function ShoppingListSection({
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════
+  const q = marketSearch.trim().toLocaleLowerCase("pt-BR");
+  const matchedList = listFull.filter(({ item }) => !q || item!.name.toLocaleLowerCase("pt-BR").includes(q) || (item!.category || "").toLocaleLowerCase("pt-BR").includes(q));
+  const matchedAvailable = availableItems.filter(item => !q || item.name.toLocaleLowerCase("pt-BR").includes(q) || (item.category || "").toLocaleLowerCase("pt-BR").includes(q));
+  const orderedList = [...matchedList].sort((a, b) => Number(!!a.done) - Number(!!b.done) || (a.item!.category || "Sem categoria").localeCompare(b.item!.category || "Sem categoria") || a.item!.name.localeCompare(b.item!.name));
+  const listGroups: Record<string, typeof orderedList> = {};
+  orderedList.forEach(entry => { const cat = entry.item!.category || "Sem categoria"; (listGroups[cat] ||= []).push(entry); });
+  const availableGroups: Record<string, Item[]> = {};
+  matchedAvailable.sort((a,b) => (a.category || "Sem categoria").localeCompare(b.category || "Sem categoria") || a.name.localeCompare(b.name)).forEach(item => { const cat = item.category || "Sem categoria"; (availableGroups[cat] ||= []).push(item); });
+
   return (
     <div className="space-y-4">
-
-      {/* ── Tab Toggle ── */}
-      <div className={`flex gap-2 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-        <button onClick={() => setListMode("plan")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-            listMode === "plan" ? "bg-teal-500 text-white shadow-sm"
-              : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
-          }`}>
-          Planejar
-          {availableItems.length > 0 && (
-            <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${
-              listMode === "plan" ? "bg-white/20" : isDark ? "bg-slate-800 text-slate-500" : "bg-slate-200 text-slate-400"
-            }`}>{availableItems.length}</span>
-          )}
-        </button>
-        <button onClick={() => setListMode("market")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-            listMode === "market" ? "bg-blue-500 text-white shadow-sm"
-              : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
-          }`}>
-          Mercado
-          {activeList.length > 0 && (
-            <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${
-              listMode === "market" ? "bg-white/20" : isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-600"
-            }`}>{activeList.length}</span>
-          )}
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <p className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{pendingCount} pendente{pendingCount !== 1 ? "s" : ""}{doneCount ? ` · ${doneCount} comprado${doneCount !== 1 ? "s" : ""}` : ""}</p>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setCompareOpen(true)} title="Comparar preços" className={`p-2 rounded-lg ${isDark ? "text-blue-400 hover:bg-slate-800" : "text-blue-600 hover:bg-blue-50"}`}><Icon name="scale" size={17} /></button>
+          {activeList.length > 0 && <>
+            <button onClick={() => setShareModal(true)} title="Compartilhar lista" className={`p-2 rounded-lg ${isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-100"}`}><Icon name="share" size={16} /></button>
+            <button onClick={() => setConvertModal(true)} title="Registrar compra" className="p-2 rounded-lg text-teal-500 hover:bg-teal-500/10"><Icon name="cart" size={16} /></button>
+            <button onClick={() => { setSaveName(""); setSaveModal(true); }} title="Salvar lista" className="p-2 rounded-lg text-teal-500 hover:bg-teal-500/10"><Icon name="check" size={16} /></button>
+          </>}
+          {savedLists.length > 0 && <button onClick={() => setSavedListsModal(true)} title="Listas salvas" className={`p-2 rounded-lg ${isDark ? "text-slate-400" : "text-slate-500"}`}><Icon name="list" size={16} /></button>}
+        </div>
       </div>
-
-      {/* ════════════════════════════════════════════════════════════════════
-          PLANEJAR MODE
-      ════════════════════════════════════════════════════════════════════ */}
-      {listMode === "plan" && (
-        <>
-          {/* Toolbar */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex gap-2">
-              {availableItems.some((i) => (statsCache[i.id]?.avgMonthly ?? 0) > 0) && (
-                <Btn onClick={autoSuggest} variant="outline" size="sm"><Icon name="history" size={13} />Sugerir</Btn>
-              )}
-              {savedLists.length > 0 && (
-                <Btn onClick={() => setSavedListsModal(true)} variant="outline" size="sm">
-                  <Icon name="list" size={13} />Listas ({savedLists.length})
-                </Btn>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {activeList.length > 0 && (
-                <>
-                  <Btn onClick={() => setClearAllConfirm(true)} variant="danger" size="sm"><Icon name="trash" size={13} /></Btn>
-                  <Btn onClick={() => setShareModal(true)} variant="outline" size="sm"><Icon name="share" size={13} /></Btn>
-                  <Btn onClick={() => setConvertModal(true)} variant="outline" size="sm"><Icon name="cart" size={13} />Compra</Btn>
-                  <Btn onClick={() => { setSaveName(""); setSaveModal(true); }} variant="success" size="sm">
-                    <Icon name="check" size={13} />Salvar
-                  </Btn>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* ── Search bar — always on top ── */}
-          <div className="relative">
-            <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-              <Icon name="search" size={15} />
-            </div>
-            <input value={planSearch} onChange={(e) => setPlanSearch(e.target.value)}
-              placeholder="Buscar produto…"
-              className={`w-full pl-9 ${planSearch ? "pr-9" : "pr-3"} py-2.5 rounded-xl border text-sm focus:outline-none focus:border-teal-500 transition-all ${
-                isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600"
-                       : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
-              }`} />
-            {planSearch && (
-              <button onClick={() => setPlanSearch("")}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-600 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>
-                <Icon name="x" size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Category pills */}
-          <CategoryPills categories={planCategories} active={filterCatPlan} onChange={setFilterCatPlan} isDark={isDark} />
-
-          {/* ── Items to add (grouped by category) ── */}
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center text-center py-8 gap-3 px-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                <Icon name="package" size={20} />
-              </div>
-              <p className={`font-black text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>Nenhum produto cadastrado</p>
-              {onGoToItems && (
-                <button onClick={onGoToItems} className="px-4 py-2 rounded-xl bg-teal-500 text-white text-xs font-black flex items-center gap-1.5">
-                  <Icon name="plus" size={13} />Cadastrar produtos
-                </button>
-              )}
-            </div>
-          ) : planFiltered.length > 0 ? (
-            <div className="space-y-4">
-              {Object.entries(groupedPlan).map(([cat, catItems]) => (
-                <div key={cat}>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">{cat}</p>
-                  <div className="space-y-1.5">
-                    {catItems.map((item) => {
-                      const s = statsCache[item.id];
-                      return (
-                        <PlanItemCard key={item.id} item={item} stats={s} habit={habitCache[item.id] || null} isDark={isDark}
-                          isExpanded={expandedPlanId === item.id}
-                          onExpand={() => setExpandedPlanId(expandedPlanId === item.id ? null : item.id)}
-                          onAdd={() => addItem(item.id)} onCompare={() => openCompare(item)} />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : availableItems.length === 0 ? (
-            <p className={`text-xs text-center py-3 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Todos os produtos já estão na lista</p>
-          ) : (
-            <p className={`text-xs text-center py-3 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Nenhum resultado para "{planSearch}"</p>
-          )}
-
-          {/* ── Already in list (below, grouped by category) ── */}
-          {listFull.length > 0 && (
-            <div>
-              <div className={`flex items-center justify-between mb-2 pt-2 border-t ${isDark ? "border-slate-800" : "border-slate-100"}`}>
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                  Na lista ({listFull.length})
-                </p>
-                {doneCount > 0 && (
-                  <button onClick={clearDone} className={`text-[10px] font-bold ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>
-                    Limpar marcados ({doneCount})
-                  </button>
-                )}
-              </div>
-
-              {/* Category pills for in-list items */}
-              <div className="mb-3">
-                <div className="relative mb-3">
-                  <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                    <Icon name="search" size={14} />
-                  </div>
-                  <input value={inListSearch} onChange={(e) => setInListSearch(e.target.value)}
-                    placeholder="Buscar produto na lista…"
-                    className={`w-full pl-8 ${inListSearch ? "pr-9" : "pr-3"} py-2 rounded-xl border text-sm focus:outline-none focus:border-teal-500 transition-all ${
-                      isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600"
-                             : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
-                    }`} />
-                  {inListSearch && (
-                    <button onClick={() => setInListSearch("")}
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-600 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>
-                      <Icon name="x" size={13} />
-                    </button>
-                  )}
-                </div>
-                <div className="mb-3">
-                  <CategoryPills categories={inListCategories} active={filterCatInList} onChange={setFilterCatInList} isDark={isDark} allLabel="Tudo" />
-                </div>
-                <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-                  {([
-                    { id: "category", label: "Categoria" },
-                    { id: "alpha", label: "A-Z" },
-                    { id: "added", label: "Adição" },
-                  ] as { id: "category" | "alpha" | "added"; label: string }[]).map(opt => (
-                    <button key={opt.id} onClick={() => setInListSort(opt.id)}
-                      className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${
-                        inListSort === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
-                      }`}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {filteredInList.length === 0 ? (
-                <Empty icon="search" title={`Nenhum resultado para "${inListSearch || filterCatInList}"`} />
-              ) : (
-              <div className="space-y-4">
-                {Object.entries(groupedInList).map(([cat, catEntries]) => (
-                  <div key={cat}>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">{cat}</p>
-                    <div className="space-y-1.5">
-                      {catEntries.map(({ itemId, item, stats, qty, done }) => {
-                        const it = item!;
-                        const du = getDisplayUnit(it);
-                        const factor = getDisplayFactor(it);
-                        const avgPrice = stats
-                          ? it.type === "bulk" ? stats.avgPrice / factor : stats.avgPrice
-                          : null;
-                        const suggestedQty = habitCache[itemId]
-                          ? Math.max(1, Math.round(habitCache[itemId]!.avgQtyPerPurchase))
-                          : null;
-                        return (
-                          <div key={itemId} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
-                            done
-                              ? isDark ? "opacity-40 bg-slate-900/40 border-slate-800" : "opacity-40 bg-slate-50 border-slate-200"
-                              : isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-                          }`}>
-                            <button onClick={() => toggleDone(itemId)}
-                              className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                                done ? "bg-teal-500 border-teal-500" : isDark ? "border-slate-600 hover:border-teal-500" : "border-slate-300 hover:border-teal-500"
-                              }`}>
-                              {done && <Icon name="check" size={10} />}
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-semibold truncate ${done ? "line-through text-slate-500" : isDark ? "text-slate-100" : "text-slate-900"}`}>
-                                {it.name}
-                              </p>
-                              {avgPrice !== null && !done && (
-                                <p className="text-[10px] text-green-400">Médio {fmt(avgPrice)}/{it.type === "bulk" ? du : "emb"}</p>
-                              )}
-                              {suggestedQty !== null && !done && suggestedQty !== qty && (
-                                <button onClick={() => updateQty(itemId, suggestedQty)}
-                                  className={`mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${isDark ? "bg-teal-500/10 text-teal-400 hover:bg-teal-500/20" : "bg-teal-50 text-teal-700 hover:bg-teal-100"}`}>
-                                  Usar média: {suggestedQty} emb
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button onClick={() => updateQty(itemId, qty - 1)}
-                                className={`w-6 h-6 rounded-md flex items-center justify-center text-sm font-black ${isDark ? "bg-slate-800 text-slate-500 hover:text-white" : "bg-slate-100 text-slate-400 hover:text-slate-700"}`}>−</button>
-                              <span className={`text-xs font-black w-5 text-center ${isDark ? "text-slate-200" : "text-slate-800"}`}>{qty}</span>
-                              <button onClick={() => updateQty(itemId, qty + 1)}
-                                className={`w-6 h-6 rounded-md flex items-center justify-center text-sm font-black ${isDark ? "bg-slate-800 text-slate-500 hover:text-white" : "bg-slate-100 text-slate-400 hover:text-slate-700"}`}>+</button>
-                            </div>
-                            <button onClick={() => removeItem(itemId)}
-                              className={`p-1 flex-shrink-0 ${isDark ? "text-slate-700 hover:text-red-400" : "text-slate-300 hover:text-red-500"} transition-colors`}>
-                              <Icon name="x" size={13} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════
-          MERCADO MODE
-      ════════════════════════════════════════════════════════════════════ */}
-      {listMode === "market" && (
-        <>
-          {listFull.length === 0 ? (
-            <div className="flex flex-col items-center text-center py-12 gap-4 px-4">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                <Icon name="list" size={24} />
-              </div>
-              <div className="space-y-1">
-                <p className={`font-black text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>Lista vazia</p>
-                <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>Vá para "Planejar" e adicione produtos antes de ir ao mercado.</p>
-              </div>
-              <Btn onClick={() => setListMode("plan")} size="sm"><Icon name="plus" size={13} />Planejar compras</Btn>
-            </div>
-          ) : (
-            <>
-              {/* Stats bar */}
-              <div className={`flex items-center justify-between px-4 py-3 rounded-xl border ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Modo mercado</p>
-                  <p className={`text-sm font-bold mt-0.5 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                    {pendingCount} pendente{pendingCount !== 1 ? "s" : ""}
-                    {doneCount > 0 && <span className="text-slate-500"> · <span className="text-teal-400">{doneCount} comprado{doneCount !== 1 ? "s" : ""}</span></span>}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  {doneCount > 0 && <Btn onClick={clearDone} variant="ghost" size="sm">Limpar</Btn>}
-                  <Btn onClick={() => setConvertModal(true)} variant="outline" size="sm">
-                    <Icon name="cart" size={12} />Registrar
-                  </Btn>
-                </div>
-              </div>
-
-              {/* Search */}
-              <div className="relative">
-                <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                  <Icon name="search" size={15} />
-                </div>
-                <input value={marketSearch} onChange={(e) => setMarketSearch(e.target.value)}
-                  placeholder="Buscar na lista…"
-                  className={`w-full pl-9 ${marketSearch ? "pr-9" : "pr-3"} py-2.5 rounded-xl border text-sm focus:outline-none focus:border-teal-500 transition-all ${
-                    isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600"
-                           : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
-                  }`} />
-                {marketSearch && (
-                  <button onClick={() => setMarketSearch("")}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-600 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>
-                    <Icon name="x" size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Category pills */}
-              <CategoryPills categories={marketCategories} active={filterCatMarket} onChange={setFilterCatMarket} isDark={isDark} />
-
-              <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-                {([
-                  { id: "category", label: "Por categoria" },
-                  { id: "alpha", label: "A-Z" },
-                ] as { id: "category" | "alpha"; label: string }[]).map(opt => (
-                  <button key={opt.id} onClick={() => setMarketSort(opt.id)}
-                    className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${
-                      marketSort === opt.id ? "bg-blue-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
-                    }`}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Pending */}
-              {pendingList.length === 0 && marketSearch ? (
-                <Empty icon="search" title={`Nenhum resultado para "${marketSearch}"`} />
-              ) : pendingList.length === 0 && doneList.length > 0 ? (
-                <div className={`flex flex-col items-center py-8 gap-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                  <Icon name="check" size={32} />
-                  <p className="text-sm font-bold">Tudo marcado!</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(groupedPending).map(([cat, catItems]) => (
-                    <div key={cat}>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">{cat}</p>
-                      <div className="space-y-2">
-                        {catItems.map(({ itemId, item, stats, qty }) => (
-                          <MarketItemCard
-                            key={itemId} itemId={itemId} item={item!} stats={stats} qty={qty}
-                            isDark={isDark} isExpanded={expandedId === itemId}
-                            onToggle={() => toggleDone(itemId)}
-                            onRemove={() => removeItem(itemId)}
-                            onExpand={() => setExpandedId(expandedId === itemId ? null : itemId)}
-                            onQtyChange={(n) => updateQty(itemId, n)}
-                            recentEntries={recentEntriesCache[itemId] || []}
-                            priceEvolution={priceEvolutionCache[itemId] || []}
-                            habit={habitCache[itemId] || null}
-                            onNavigatePurchase={(onGoToHistoryPurchase || onGoToHistoryPurchaseWithProduct) ? handleNavigatePurchase : undefined}
-                            onCompare={() => openCompare(item!)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Done */}
-              {doneList.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Já comprado ({doneList.length})</p>
-                  {doneList.map(({ itemId, item, qty }) => (
-                    <div key={itemId} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border opacity-50 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-                      <button onClick={() => toggleDone(itemId)} className="w-6 h-6 rounded-full bg-teal-500 border-2 border-teal-500 flex-shrink-0 flex items-center justify-center">
-                        <Icon name="check" size={12} />
-                      </button>
-                      <p className={`text-sm flex-1 line-through ${isDark ? "text-slate-500" : "text-slate-400"}`}>{item!.name}</p>
-                      <span className="text-xs text-slate-600">{qty}x</span>
-                      <button onClick={() => removeItem(itemId)} className={`p-1 ${isDark ? "text-slate-700" : "text-slate-400"}`}><Icon name="x" size={13} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Quick Add */}
-              {availableItems.length > 0 && (
-                <div>
-                  <button
-                    onClick={() => {
-                      setShowQuickAdd(!showQuickAdd);
-                      setQuickSearch("");
-                      if (!showQuickAdd) setTimeout(() => quickSearchRef.current?.focus(), 100);
-                    }}
-                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed text-sm font-bold transition-all ${
-                      showQuickAdd
-                        ? isDark ? "border-teal-500/50 text-teal-400 bg-teal-500/5" : "border-teal-400 text-teal-600 bg-teal-50"
-                        : isDark ? "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"
-                                 : "border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600"
-                    }`}>
-                    <Icon name={showQuickAdd ? "x" : "plus"} size={16} />
-                    {showQuickAdd ? "Fechar" : `Adicionar item (${availableItems.length} disponíveis)`}
-                  </button>
-
-                  {showQuickAdd && (
-                    <div className={`mt-3 rounded-2xl border overflow-hidden ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
-                      <div className={`px-3 pt-3 pb-2 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
-                        <div className="relative">
-                          <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                            <Icon name="search" size={14} />
-                          </div>
-                          <input ref={quickSearchRef} value={quickSearch}
-                            onChange={(e) => setQuickSearch(e.target.value)}
-                            placeholder="Buscar produto para adicionar…"
-                            className={`w-full pl-8 pr-3 py-2 rounded-xl text-sm focus:outline-none focus:border-teal-500 border transition-all ${
-                              isDark ? "bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-600"
-                                     : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                            }`} />
-                          {quickSearch && (
-                            <button onClick={() => setQuickSearch("")}
-                              className={`absolute right-2.5 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                              <Icon name="x" size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {quickAddFiltered.length === 0 ? (
-                          <div className="py-6 text-center">
-                            <p className={`text-xs ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                              {quickSearch ? `Nenhum resultado para "${quickSearch}"` : "Todos os produtos já estão na lista"}
-                            </p>
-                            {onGoToItems && (
-                              <button onClick={onGoToItems} className="mt-2 text-xs text-teal-400 font-bold flex items-center gap-1 mx-auto">
-                                <Icon name="plus" size={11} />Cadastrar novo produto
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-2 space-y-1">
-                            {quickAddFiltered.map((item) => (
-                              <QuickAddItem key={item.id} item={item} stats={statsCache[item.id] ?? null} isDark={isDark}
-                                onAdd={() => { addItem(item.id); if (quickAddFiltered.length === 1) setShowQuickAdd(false); }} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
+      <div className="relative">
+        <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-500" : "text-slate-400"}`}><Icon name="search" size={15} /></div>
+        <input value={marketSearch} onChange={e => setMarketSearch(e.target.value)} placeholder="Buscar ou adicionar produto…" className={`w-full pl-9 ${marketSearch ? "pr-9" : "pr-3"} py-3 rounded-xl border text-sm focus:outline-none focus:border-teal-500 ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"}`} />
+        {!!marketSearch && <button onClick={() => setMarketSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="x" size={14} /></button>}
+      </div>
+      <CategoryPills categories={[...new Set([...matchedList.map(l => l.item!.category || "Sem categoria"), ...matchedAvailable.map(i => i.category || "Sem categoria")])].sort()} active={filterCatMarket} onChange={setFilterCatMarket} isDark={isDark} />
+      {Object.entries(listGroups).map(([cat, entries]) => {
+        const visible = entries.filter(e => !filterCatMarket || (e.item!.category || "Sem categoria") === filterCatMarket);
+        if (!visible.length) return null;
+        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat}</p><div className="space-y-2">{visible.map(({itemId,item,stats,qty,done}) => <div key={itemId} className={done ? "opacity-60" : ""}><MarketItemCard itemId={itemId} item={item!} stats={stats} qty={qty} done={done} isDark={isDark} isExpanded={expandedId===itemId} onToggle={()=>toggleDone(itemId)} onRemove={()=>removeItem(itemId)} onExpand={()=>setExpandedId(expandedId===itemId?null:itemId)} onQtyChange={n=>updateQty(itemId,n)} recentEntries={recentEntriesCache[itemId]||[]} priceEvolution={priceEvolutionCache[itemId]||[]} habit={habitCache[itemId]||null} onNavigatePurchase={(onGoToHistoryPurchase||onGoToHistoryPurchaseWithProduct)?handleNavigatePurchase:undefined} onCompare={()=>openCompare(item!)}/></div>)}</div></section>;
+      })}
+      {Object.entries(availableGroups).map(([cat, entries]) => {
+        const visible = entries.filter(i => !filterCatMarket || (i.category || "Sem categoria") === filterCatMarket);
+        if (!visible.length) return null;
+        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat} · para adicionar</p><div className="space-y-1.5">{visible.map(item => <QuickAddItem key={item.id} item={item} stats={statsCache[item.id]??null} isDark={isDark} onAdd={()=>addItem(item.id)}/>)}</div></section>;
+      })}
+      {!orderedList.length && !matchedAvailable.length && <Empty icon="search" title={q ? `Nenhum resultado para "${marketSearch}"` : "Nenhum produto cadastrado"} />}
+      {q && !matchedList.length && matchedAvailable.length > 0 && <p className="text-xs text-slate-500 text-center">Toque em um item para adicioná-lo à lista.</p>}
+      {activeList.length > 0 && doneCount > 0 && <button onClick={clearDone} className="w-full py-2 text-xs font-semibold text-slate-500">Remover itens comprados</button>}
+      {onGoToItems && <button onClick={onGoToItems} className="w-full py-2 text-xs font-semibold text-teal-500">+ Cadastrar produto</button>}
 
       {/* ════════════════════════════════════════════════════════════════════
           MODALS
       ════════════════════════════════════════════════════════════════════ */}
 
       {/* Price Compare */}
-      {compareOpen && compareItem && (
+      {compareOpen && (
         <PriceCompareModal items={items} initialItem={compareItem} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
       )}
 

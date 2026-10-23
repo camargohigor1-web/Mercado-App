@@ -16,6 +16,7 @@ interface HistorySectionProps {
   initialHighlightedProductId?: string;
   onNavigateAway?: () => void;
   initialItemId?: string;
+  onOpenCompare?: () => void;
 }
 
 function habitQuantity(item: Item, qty: number, internalQty: number | null, factor: number) {
@@ -42,7 +43,7 @@ const QUICK_PERIODS: { id: QuickPeriod; label: string }[] = [
   { id: "1y", label: "Último ano" },
 ];
 
-export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialItemId }: HistorySectionProps) {
+export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPurchaseId, initialHighlightedProductId, onNavigateAway, initialItemId, onOpenCompare }: HistorySectionProps) {
   const { isDark } = useTheme();
   const { items, markets, purchases } = useAppContext();
 
@@ -131,19 +132,6 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
   purchasesInRange.forEach(p => p.lines.forEach(l => {
     if (!lastPurchaseDateByItem[l.itemId] || p.date > lastPurchaseDateByItem[l.itemId]) lastPurchaseDateByItem[l.itemId] = p.date;
   }));
-
-  // Resumo geral do período: gasto total, nº de compras, ticket médio e top produtos por gasto.
-  const periodTotalSpent = purchasesInRange.reduce((sum, p) => sum + p.total, 0);
-  const periodPurchaseCount = purchasesInRange.length;
-  const spendByItemId: Record<string, number> = {};
-  purchasesInRange.forEach(p => p.lines.forEach(l => {
-    spendByItemId[l.itemId] = (spendByItemId[l.itemId] || 0) + l.total;
-  }));
-  const topSpendItems = Object.entries(spendByItemId)
-    .map(([id, total]) => ({ item: getItem(id), total }))
-    .filter((x): x is { item: Item; total: number } => !!x.item)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
 
   const sortedPurchases = [...purchasesInRange].sort((a, b) => b.date.localeCompare(a.date));
   const filteredPurchases = sortedPurchases.filter(p => {
@@ -548,7 +536,9 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
         ))}
       </div>
 
-      {/* Filtros rápidos de período — afetam a lista de produtos, a de compras e o resumo abaixo */}
+      {onOpenCompare && <button onClick={onOpenCompare} className={`w-full py-2.5 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 ${isDark ? "border-slate-800 text-blue-400 hover:bg-slate-900" : "border-slate-200 text-blue-600 hover:bg-blue-50"}`}><Icon name="scale" size={15}/>Comparar preços</button>}
+
+      {/* Filtros rápidos de período */}
       <div className="flex gap-1.5 flex-wrap">
         {QUICK_PERIODS.map(opt => (
           <button key={opt.id} onClick={() => applyQuickPeriod(opt.id)}
@@ -558,24 +548,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
         ))}
       </div>
 
-      {periodPurchaseCount > 0 && (
-        <Card>
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-            Resumo {quickPeriod === "all" ? "geral" : "do período"}
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <StatBox label="Gasto total" val={fmt(periodTotalSpent)} color="teal" />
-            <StatBox label="Compras" val={String(periodPurchaseCount)} color="blue" />
-            <StatBox label="Ticket médio" val={fmt(periodTotalSpent / periodPurchaseCount)} color="green" />
-          </div>
-          {topSpendItems.length > 0 && (
-            <div className="mt-3">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Mais gastos no período</p>
-              <BarChart data={topSpendItems.map(x => ({ label: x.item.name, value: x.total }))} colorClass="bg-teal-500" formatValue={fmt} />
-            </div>
-          )}
-        </Card>
-      )}
+
 
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder={subTab === "products" ? "Buscar produto..." : "Buscar mercado ou data..."}
