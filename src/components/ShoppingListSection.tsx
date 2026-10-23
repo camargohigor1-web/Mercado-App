@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useMemo, memo } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useToast } from "../hooks/useToast";
+import { ToastContainer } from "./ToastContainer";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
@@ -7,6 +9,8 @@ import { PriceCompareModal } from "./PriceCompareModal";
 import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
+
+const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
 interface ShoppingListSectionProps {
   onConvertToPurchase: (lines: PurchaseLine[]) => void;
@@ -106,7 +110,7 @@ const MarketItemCard = memo(function MarketItemCard({
       {/* ── Main row ── */}
       <div className="flex items-center gap-2.5 px-3 py-3">
         <button onClick={onToggle}
-          className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all active:scale-90 ${
+          className={`w-10 h-10 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all active:scale-90 ${
             isDark ? "border-slate-600 hover:border-teal-400" : "border-slate-300 hover:border-teal-500"
           } ${done ? "bg-teal-500 border-teal-500" : ""}`}>
           {done ? <Icon name="check" size={12} /> : <div className={`w-2.5 h-2.5 rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />}
@@ -138,8 +142,8 @@ const MarketItemCard = memo(function MarketItemCard({
 
         {/* Qty controls */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={() => onQtyChange(Math.max(1, qty - 1))}
-            className={`w-7 h-7 rounded-lg flex items-center justify-center text-base font-black transition-colors active:scale-90 ${
+          <button onClick={() => onQtyChange(qty - 1)}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black transition-colors active:scale-90 ${
               isDark ? "bg-slate-800 text-slate-500 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:text-slate-700"
             }`}>−</button>
           <input ref={inputRef} type="number" inputMode="decimal" value={localQty}
@@ -150,13 +154,17 @@ const MarketItemCard = memo(function MarketItemCard({
               isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-100 border-slate-300 text-slate-900"
             }`} />
           <button onClick={() => onQtyChange(qty + 1)}
-            className={`w-7 h-7 rounded-lg flex items-center justify-center text-base font-black transition-colors active:scale-90 ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black transition-colors active:scale-90 ${
               isDark ? "bg-slate-800 text-slate-500 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:text-slate-700"
             }`}>+</button>
         </div>
 
+        <button onClick={onRemove} title={`Remover ${item.name} da lista`} aria-label={`Remover ${item.name} da lista`}
+          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${isDark ? "text-slate-600 hover:text-red-400 hover:bg-red-500/10" : "text-slate-400 hover:text-red-500 hover:bg-red-50"}`}>
+          <Icon name="trash" size={14} />
+        </button>
         <button onClick={onExpand}
-          className={`p-1 flex-shrink-0 transition-all ${
+          className={`w-8 h-10 flex-shrink-0 flex items-center justify-center transition-all ${
             isDark ? "text-slate-600 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"
           } ${isExpanded ? "rotate-90" : ""}`}>
           <Icon name="chevron" size={15} />
@@ -261,7 +269,7 @@ const MarketItemCard = memo(function MarketItemCard({
                 isDark ? "bg-teal-500/15 text-teal-400 border border-teal-500/30 hover:bg-teal-500/25"
                        : "bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"
               }`}>
-              <Icon name="check" size={13} />Marcar comprado
+              <Icon name="check" size={13} />{done ? "Desmarcar compra" : "Marcar comprado"}
             </button>
             <button onClick={onCompare}
               className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
@@ -304,7 +312,7 @@ const QuickAddItem = memo(function QuickAddItem({
           : <p className={`text-[10px] mt-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico</p>
         }
       </div>
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-100 text-teal-600"}`}>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-100 text-teal-600"}`}>
         <Icon name="plus" size={14} />
       </div>
     </button>
@@ -341,7 +349,7 @@ const PlanItemCard = memo(function PlanItemCard({
             : <p className={`text-[10px] mt-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico</p>}
         </button>
         <button type="button" onClick={onCompare} title={`Comparar preços de ${item.name}`} aria-label={`Comparar preços de ${item.name}`}
-          className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
           <Icon name="scale" size={14} />
         </button>
         <button type="button" onClick={onAdd} title={`Adicionar ${item.name} à lista`} aria-label={`Adicionar ${item.name} à lista`}
@@ -384,6 +392,7 @@ export function ShoppingListSection({
   onConvertToPurchase, onGoToItems, onGoToHistoryPurchase, onGoToHistoryPurchaseWithProduct,
 }: ShoppingListSectionProps) {
   const { isDark } = useTheme();
+  const { toasts, show: showToast, dismiss } = useToast();
   const { items, markets, purchases, list: shoppingList, setList: setShoppingList } = useAppContext();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -400,6 +409,7 @@ export function ShoppingListSection({
 
   // market
   const [marketSearch, setMarketSearch] = useState("");
+  const [expandedDoneCategories, setExpandedDoneCategories] = useState<Record<string, boolean>>({});
   const [filterCatMarket, setFilterCatMarket] = useState("");
   const [marketSort, setMarketSort] = useState<"category" | "alpha">("category");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -590,13 +600,17 @@ export function ShoppingListSection({
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
   const addItem = useCallback((itemId: string) => {
+    const item = items.find(entry => entry.id === itemId);
     setShoppingList([...shoppingList, { itemId, done: false, saved: false, qty: 1 }]);
-  }, [shoppingList, setShoppingList]);
+    if (item) showToast(`${item.name} adicionado à lista`);
+  }, [shoppingList, setShoppingList, items, showToast]);
 
   const removeItem = useCallback((itemId: string) => {
     setShoppingList(shoppingList.filter((l) => l.saved || (l as ShoppingListItem).itemId !== itemId));
     setExpandedId((id) => (id === itemId ? null : id));
-  }, [shoppingList, setShoppingList]);
+    const item = items.find(entry => entry.id === itemId);
+    if (item) showToast(`${item.name} removido da lista`, "info");
+  }, [shoppingList, setShoppingList, items, showToast]);
 
   const toggleDone = useCallback((itemId: string) => {
     setShoppingList(shoppingList.map((l) =>
@@ -604,14 +618,18 @@ export function ShoppingListSection({
         ? { ...l, done: !(l as ShoppingListItem).done } : l
     ) as typeof shoppingList);
     setExpandedId((id) => (id === itemId ? null : id));
-  }, [shoppingList, setShoppingList]);
+    const item = items.find(entry => entry.id === itemId);
+    const wasDone = activeList.find(entry => entry.itemId === itemId)?.done;
+    if (item) showToast(wasDone ? `${item.name} voltou para pendentes` : `${item.name} marcado como comprado`);
+  }, [shoppingList, setShoppingList, items, activeList, showToast]);
 
   const updateQty = useCallback((itemId: string, qty: number) => {
+    if (qty <= 0) { removeItem(itemId); return; }
     setShoppingList(shoppingList.map((l) =>
       !l.saved && (l as ShoppingListItem).itemId === itemId
         ? { ...l, qty: Math.max(0.001, qty) } : l
     ) as typeof shoppingList);
-  }, [shoppingList, setShoppingList]);
+  }, [shoppingList, setShoppingList, removeItem]);
 
   const clearDone = useCallback(() => {
     setShoppingList(shoppingList.filter((l) => l.saved || !(l as ShoppingListItem).done));
@@ -744,9 +762,9 @@ export function ShoppingListSection({
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════
-  const q = marketSearch.trim().toLocaleLowerCase("pt-BR");
-  const matchedList = listFull.filter(({ item }) => !q || item!.name.toLocaleLowerCase("pt-BR").includes(q) || (item!.category || "").toLocaleLowerCase("pt-BR").includes(q));
-  const matchedAvailable = availableItems.filter(item => !q || item.name.toLocaleLowerCase("pt-BR").includes(q) || (item.category || "").toLocaleLowerCase("pt-BR").includes(q));
+  const q = normalizeText(marketSearch.trim());
+  const matchedList = listFull.filter(({ item }) => !q || normalizeText(item!.name).includes(q) || normalizeText(item!.category || "").includes(q));
+  const matchedAvailable = availableItems.filter(item => !q || normalizeText(item.name).includes(q) || normalizeText(item.category || "").includes(q));
   const orderedList = [...matchedList].sort((a, b) => Number(!!a.done) - Number(!!b.done) || (a.item!.category || "Sem categoria").localeCompare(b.item!.category || "Sem categoria") || a.item!.name.localeCompare(b.item!.name));
   const listGroups: Record<string, typeof orderedList> = {};
   orderedList.forEach(entry => { const cat = entry.item!.category || "Sem categoria"; (listGroups[cat] ||= []).push(entry); });
@@ -776,14 +794,16 @@ export function ShoppingListSection({
       {Object.entries(listGroups).map(([cat, entries]) => {
         const visible = entries.filter(e => !filterCatMarket || (e.item!.category || "Sem categoria") === filterCatMarket);
         if (!visible.length) return null;
-        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat}</p><div className="space-y-2">{visible.map(({itemId,item,stats,qty,done}) => <div key={itemId} className={done ? "opacity-60" : ""}><MarketItemCard itemId={itemId} item={item!} stats={stats} qty={qty} done={done} isDark={isDark} isExpanded={expandedId===itemId} onToggle={()=>toggleDone(itemId)} onRemove={()=>removeItem(itemId)} onExpand={()=>setExpandedId(expandedId===itemId?null:itemId)} onQtyChange={n=>updateQty(itemId,n)} recentEntries={recentEntriesCache[itemId]||[]} priceEvolution={priceEvolutionCache[itemId]||[]} habit={habitCache[itemId]||null} onNavigatePurchase={(onGoToHistoryPurchase||onGoToHistoryPurchaseWithProduct)?handleNavigatePurchase:undefined} onCompare={()=>openCompare(item!)}/></div>)}</div></section>;
+        const collapsed = visible.every(entry => entry.done) && !expandedDoneCategories[cat];
+        return <section key={cat} className="space-y-2"><button onClick={() => { if (visible.every(entry => entry.done)) setExpandedDoneCategories(prev => ({ ...prev, [cat]: !prev[cat] })); }} className="w-full flex items-center justify-between px-1 py-1 text-left"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat}</span>{visible.every(entry => entry.done) && <span className="text-[10px] text-slate-500">{visible.length} comprados · {collapsed ? "mostrar" : "recolher"}</span>}</button>{!collapsed && <div className="space-y-2">{visible.map(({itemId,item,stats,qty,done}) => <div key={itemId} className={done ? "opacity-60" : ""}><MarketItemCard itemId={itemId} item={item!} stats={stats} qty={qty} done={done} isDark={isDark} isExpanded={expandedId===itemId} onToggle={()=>toggleDone(itemId)} onRemove={()=>removeItem(itemId)} onExpand={()=>setExpandedId(expandedId===itemId?null:itemId)} onQtyChange={n=>updateQty(itemId,n)} recentEntries={recentEntriesCache[itemId]||[]} priceEvolution={priceEvolutionCache[itemId]||[]} habit={habitCache[itemId]||null} onNavigatePurchase={(onGoToHistoryPurchase||onGoToHistoryPurchaseWithProduct)?handleNavigatePurchase:undefined} onCompare={()=>openCompare(item!)}/></div>)}</div>}</section>;
       })}
       {Object.entries(availableGroups).map(([cat, entries]) => {
         const visible = entries.filter(i => !filterCatMarket || (i.category || "Sem categoria") === filterCatMarket);
         if (!visible.length) return null;
-        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat} · para adicionar</p><div className="space-y-1.5">{visible.map(item => <QuickAddItem key={item.id} item={item} stats={statsCache[item.id]??null} isDark={isDark} onAdd={()=>addItem(item.id)}/>)}</div></section>;
+        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat} · para adicionar</p><div className="space-y-2">{visible.map(item => <PlanItemCard key={item.id} item={item} stats={statsCache[item.id]??null} habit={habitCache[item.id]??null} isDark={isDark} isExpanded={expandedId===item.id} onExpand={()=>setExpandedId(expandedId===item.id?null:item.id)} onAdd={()=>addItem(item.id)} onCompare={()=>openCompare(item)}/>)}</div></section>;
       })}
       {!orderedList.length && !matchedAvailable.length && <Empty icon="search" title={q ? `Nenhum resultado para "${marketSearch}"` : "Nenhum produto cadastrado"} />}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
       {q && !matchedList.length && matchedAvailable.length > 0 && <p className="text-xs text-slate-500 text-center">Toque em um item para adicioná-lo à lista.</p>}
       {activeList.length > 0 && doneCount > 0 && <button onClick={clearDone} className="w-full py-2 text-xs font-semibold text-slate-500">Remover itens comprados</button>}
       {onGoToItems && <button onClick={onGoToItems} className="w-full py-2 text-xs font-semibold text-teal-500">+ Cadastrar produto</button>}

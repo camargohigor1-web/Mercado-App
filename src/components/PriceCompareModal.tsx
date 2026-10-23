@@ -7,6 +7,8 @@ import { fmt, fmtN, getDisplayUnit, calcStats, getDisplayFactor } from "../utils
 import { useAppContext } from "../context/AppContext";
 import type { Item } from "../types";
 
+const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+
 const GENERIC_UNITS = [
   { value: "un", label: "Unidades (un)" },
   { value: "kg", label: "Quilos (kg)" },
@@ -60,8 +62,9 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
     return options.map(o => ({ ...o, ppu: o.priceNum / o.sizeNum })).reduce((a, b) => (b.ppu < a.ppu ? b : a));
   }, [options]);
 
-  const searchResults = itemSearch.trim()
-    ? items.filter(i => i.name.toLowerCase().includes(itemSearch.toLowerCase())).slice(0, 6)
+  const normalizedSearch = normalizeText(itemSearch.trim());
+  const searchResults = normalizedSearch
+    ? items.filter(i => normalizeText(i.name).includes(normalizedSearch)).slice(0, 6)
     : [];
 
   return (
@@ -106,6 +109,10 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
             {options.map((opt, idx) => {
               const ppu = opt.priceNum / opt.sizeNum;
               const isBest = !!bestOption && Math.abs(bestOption.ppu - ppu) < 0.001;
+              const min = itemStats ? historicalPrice(itemStats.minPrice) : null;
+              const average = itemStats ? historicalPrice(itemStats.avgPrice) : null;
+              const last = itemStats ? historicalPrice(itemStats.lastPrice) : null;
+              const priceContext = min !== null && ppu < min ? "Abaixo do mínimo histórico" : average !== null && ppu <= average ? "Abaixo da média histórica" : last !== null && ppu <= last ? "Abaixo do último preço" : last !== null ? "Acima do último preço" : null;
               return (
                 <Card key={idx} className={isBest ? "border-teal-500/50 bg-teal-500/5" : ""}>
                   <div className="flex items-center justify-between gap-2">
@@ -117,6 +124,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
                         {isBest && <Badge color="teal">Melhor custo</Badge>}
                       </div>
                       <p className="text-xs text-slate-500">{fmt(opt.priceNum)} · <span className="text-teal-400 font-semibold">{fmt(ppu)}/{opt.unit}</span></p>
+                      {priceContext && <p className={`mt-1 text-[10px] font-semibold ${priceContext.startsWith("Abaixo") ? "text-teal-500" : "text-amber-500"}`}>{priceContext}</p>}
                     </div>
                     <button onClick={() => setOptions(options.filter((_, i) => i !== idx))}
                       className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}>
@@ -146,3 +154,4 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
     </Modal>
   );
 }
+
