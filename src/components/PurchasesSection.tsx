@@ -500,7 +500,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Itens</p>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Revisão dos itens</p>
             <span className={`text-[10px] font-bold ${isDark ? "text-slate-600" : "text-slate-400"}`}>{form.lines.length} adicionados</span>
           </div>
 
@@ -527,8 +527,8 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                       <p className="text-xs text-teal-400 font-bold mt-0.5">{fmt(l.total)}</p>
                     </div>
                     <div className="flex gap-0.5 flex-shrink-0">
-                      <button onClick={() => openLine(i)} className={`p-1.5 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"}`}><Icon name="edit" size={13} /></button>
-                      <button onClick={() => removeLine(i)} className={`p-1.5 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={13} /></button>
+                      <button type="button" title={`Editar ${it.name}`} aria-label={`Editar ${it.name}`} onClick={() => openLine(i)} className={`min-h-10 px-3 rounded-xl inline-flex items-center gap-1.5 text-xs font-bold ${isDark ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20" : "text-blue-600 bg-blue-50 hover:bg-blue-100"}`}><Icon name="edit" size={14} />Editar</button>
+                      <button type="button" title={`Remover ${it.name}`} aria-label={`Remover ${it.name}`} onClick={() => removeLine(i)} className={`min-h-10 w-10 rounded-xl inline-flex items-center justify-center ${isDark ? "text-red-400 bg-red-500/10 hover:bg-red-500/20" : "text-red-500 bg-red-50 hover:bg-red-100"}`}><Icon name="trash" size={15} /></button>
                     </div>
                   </Card>
                 );
@@ -543,6 +543,10 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
         {/* Save bar */}
         <div className={`sticky bottom-0 z-10 -mx-4 px-4 py-3 ${isDark ? "bg-slate-950/95" : "bg-slate-50/95"} backdrop-blur-xl border-t ${isDark ? "border-white/5" : "border-black/6"}`}>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{form.lines.length} {form.lines.length === 1 ? "item" : "itens"}</span>
+            <span className="text-teal-400 font-black">Total {fmt(total)}</span>
+          </div>
           <div className="flex gap-3">
             <Btn onClick={() => { setView("list"); setEditingPurchase(null); }} variant="secondary" className="flex-1">Cancelar</Btn>
             <Btn onClick={savePurchase} disabled={form.lines.length === 0 || !form.date || !form.marketId} className="flex-1">

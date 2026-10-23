@@ -80,6 +80,7 @@ export function Sel({ label, value, onChange, options, placeholder, className = 
 }
 
 // ─── ProductSearch ────────────────────────────────────────────────────────────
+const normalizeSearchText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 interface ProductSearchProps {
   label?: string; value: string; onChange: (v: string) => void;
   items: Item[]; required?: boolean; onCreateMissing?: (query: string) => void;
@@ -103,14 +104,15 @@ export function ProductSearch({ label, value, onChange, items, required, onCreat
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  const normalizedQuery = normalizeSearchText(query.trim());
   const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(query.toLowerCase()) ||
-    (i.category || "").toLowerCase().includes(query.toLowerCase())
+    normalizeSearchText(i.name).includes(normalizedQuery) ||
+    normalizeSearchText(i.category || "").includes(normalizedQuery)
   ).slice(0, 20);
 
   function select(item: Item) { onChange(item.id); setQuery(""); setOpen(false); setActiveIndex(0); }
   function createMissing() { if (!cleanQuery || !onCreateMissing) return; onCreateMissing(cleanQuery); setOpen(false); }
-  const canCreate = Boolean(onCreateMissing && cleanQuery && !filtered.some(item => item.name.toLowerCase() === cleanQuery.toLowerCase()));
+  const canCreate = Boolean(onCreateMissing && cleanQuery && !items.some(item => normalizeSearchText(item.name) === normalizeSearchText(cleanQuery)));
   const optionCount = filtered.length + (canCreate ? 1 : 0);
 
   function moveActive(delta: number) {
