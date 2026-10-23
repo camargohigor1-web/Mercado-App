@@ -9,6 +9,7 @@ import type { Purchase } from "../types";
 interface HomeSectionProps {
   onOpenCompare: () => void;
   onGoToNewPurchase: () => void;
+  onGoToShopping: () => void;
   onGoToHistory: () => void;
   onGoToHabits: () => void;
   onGoToItems: () => void;
@@ -181,11 +182,12 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 
 export function HomeSection({
   onOpenCompare,
-  onGoToNewPurchase, onGoToHabits, onGoToItems,
+  onGoToNewPurchase, onGoToShopping, onGoToHabits, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase, onGoToHistoryItem,
 }: HomeSectionProps) {
   const { isDark } = useTheme();
   const { items, markets, purchases, list } = useAppContext();
+  const activeListCount = list.filter(entry => !entry.saved).length;
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -240,13 +242,14 @@ export function HomeSection({
         <p className={`text-xl font-black ${ttl}`}>{getGreeting()} 👋</p>
         <p className={`text-xs mt-0.5 ${sub}`}>{cap(getWeekday())}</p>
       </div>
-      <button onClick={onGoToNewPurchase}
+      <button onClick={activeListCount > 0 ? onGoToShopping : onGoToNewPurchase}
         className="w-full py-4 rounded-2xl bg-teal-500 text-white font-black text-base shadow-xl shadow-teal-500/30 active:scale-[0.97] transition-all flex items-center justify-center gap-3 group press-scale">
         <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-active:scale-90 transition-transform">
           <Icon name="plus" size={17} />
         </div>
-        Nova compra
+        {activeListCount > 0 ? `Continuar lista · ${activeListCount} ${activeListCount === 1 ? "item" : "itens"}` : "Nova compra"}
       </button>
+      {activeListCount > 0 && <button onClick={onGoToNewPurchase} className={`w-full py-2.5 rounded-xl text-sm font-bold border ${isDark ? "border-white/8 text-slate-400" : "border-black/8 text-slate-500"}`}>Registrar compra</button>}
       <button onClick={onOpenCompare}
         className={`w-full py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
         <Icon name="calculator" size={16} />Comparar preços
@@ -268,13 +271,14 @@ export function HomeSection({
       </div>
 
       <div className="animate-fade-slide-up stagger-1">
-        <button onClick={onGoToNewPurchase}
+        <button onClick={activeListCount > 0 ? onGoToShopping : onGoToNewPurchase}
           className="w-full py-4 rounded-2xl bg-teal-500 text-white font-black text-base shadow-xl shadow-teal-500/30 active:scale-[0.97] transition-all flex items-center justify-center gap-3 group press-scale">
           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-active:scale-90 transition-transform">
             <Icon name="plus" size={17} />
           </div>
-          Nova compra
+          {activeListCount > 0 ? `Continuar lista · ${activeListCount} ${activeListCount === 1 ? "item" : "itens"}` : "Nova compra"}
         </button>
+        {activeListCount > 0 && <button onClick={onGoToNewPurchase} className={`w-full mt-2 py-2.5 rounded-xl text-sm font-bold border ${isDark ? "border-white/8 text-slate-400" : "border-black/8 text-slate-500"}`}>Registrar compra</button>}
         <button onClick={onOpenCompare}
           className={`w-full mt-2.5 py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
           <Icon name="calculator" size={16} />Comparar preços
@@ -398,3 +402,4 @@ export function HomeSection({
     </div>
   );
 }
+

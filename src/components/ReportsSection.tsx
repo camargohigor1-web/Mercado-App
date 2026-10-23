@@ -107,6 +107,9 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
   filtered.forEach(p => p.lines.forEach(l => { freqMap[l.itemId] = (freqMap[l.itemId] || 0) + 1; }));
   const freqData = Object.entries(freqMap).map(([id, value]) => ({ label: getItem(id)?.name || "Desconhecido", value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
+  const biggestPurchase = [...filtered].sort((a, b) => b.total - a.total)[0] ?? null;
+  const averageTicket = filtered.length ? totalSpent / filtered.length : 0;
+
   const mktCountMap: Record<string, number> = {};
   filtered.forEach(p => { const n = getMkt(p.marketId); mktCountMap[n] = (mktCountMap[n] || 0) + 1; });
   const mostVisited = Object.entries(mktCountMap).sort((a, b) => b[1] - a[1])[0];
@@ -500,6 +503,21 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
         )
       ) : (
         <>
+          <div className={`${card} space-y-3`}>
+            <p className={lbl}>Destaques do período</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className={sub}>Média por compra</p>
+                <p className={`mt-1 text-sm font-black ${isDark ? "text-teal-300" : "text-teal-700"}`}>{fmt(averageTicket)}</p>
+              </div>
+              <div>
+                <p className={sub}>Maior compra</p>
+                <p className={`mt-1 text-sm font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{biggestPurchase ? fmt(biggestPurchase.total) : "—"}</p>
+                {biggestPurchase && <p className="text-[10px] text-slate-500">{getMkt(biggestPurchase.marketId)} · {new Date(`${biggestPurchase.date}T12:00:00`).toLocaleDateString("pt-BR")}</p>}
+              </div>
+            </div>
+            {catData[0] && <p className={`border-t pt-2 text-xs ${isDark ? "border-white/5 text-slate-400" : "border-black/5 text-slate-500"}`}>Maior categoria de gasto: <span className="font-bold">{catData[0].label}</span> · {fmt(catData[0].value)} ({totalSpent ? Math.round(catData[0].value / totalSpent * 100) : 0}% do total)</p>}
+          </div>
           <div>
             <p className={lbl}>Visão geral</p>
             <div className="grid grid-cols-2 gap-2">

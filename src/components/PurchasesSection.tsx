@@ -543,9 +543,12 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
 
         {/* Save bar */}
         <div className={`sticky bottom-0 z-10 -mx-4 px-4 py-3 ${isDark ? "bg-slate-950/95" : "bg-slate-50/95"} backdrop-blur-xl border-t ${isDark ? "border-white/5" : "border-black/6"}`}>
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{form.lines.length} {form.lines.length === 1 ? "item" : "itens"}</span>
-            <span className="text-teal-400 font-black">Total {fmt(total)}</span>
+          <div className="flex items-center justify-between gap-2 mb-2 px-1">
+            <div className="min-w-0">
+              <p className={`text-[10px] truncate ${isDark ? "text-slate-500" : "text-slate-500"}`}>{form.marketId ? getMkt(form.marketId) : "Selecione o mercado"} · {form.date ? new Date(`${form.date}T12:00:00`).toLocaleDateString("pt-BR") : "Defina a data"}</p>
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{form.lines.length} {form.lines.length === 1 ? "item" : "itens"}</p>
+            </div>
+            <span className="text-teal-400 font-black whitespace-nowrap">Total {fmt(total)}</span>
           </div>
           <div className="flex gap-3">
             <Btn onClick={() => { setView("list"); setEditingPurchase(null); }} variant="secondary" className="flex-1">Cancelar</Btn>

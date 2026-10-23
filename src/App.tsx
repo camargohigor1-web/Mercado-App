@@ -229,6 +229,7 @@ function AppInner() {
               {tab === "home" && (
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
+                  onGoToShopping={() => setTab("shopping")}
                   onOpenCompare={() => setCompareModalOpen(true)}
                   onGoToHistory={() => setTab("history")}
                   onGoToHabits={() => setTab("history")}

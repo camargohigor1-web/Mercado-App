@@ -129,8 +129,12 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
     .filter(({ item }) => !filterCat || item.category === filterCat);
 
   const lastPurchaseDateByItem: Record<string, string> = {};
+  const lastMarketByItem: Record<string, string> = {};
   purchasesInRange.forEach(p => p.lines.forEach(l => {
-    if (!lastPurchaseDateByItem[l.itemId] || p.date > lastPurchaseDateByItem[l.itemId]) lastPurchaseDateByItem[l.itemId] = p.date;
+    if (!lastPurchaseDateByItem[l.itemId] || p.date > lastPurchaseDateByItem[l.itemId]) {
+      lastPurchaseDateByItem[l.itemId] = p.date;
+      lastMarketByItem[l.itemId] = getMkt(p.marketId);
+    }
   }));
 
   const sortedPurchases = [...purchasesInRange].sort((a, b) => b.date.localeCompare(a.date));
@@ -616,6 +620,8 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                               <span>{habitQuantity(item, stats.avgMonthly, null, factor)}/mês</span>
                             )}
                             <span>·</span>
+                            <span>Mín. {item.type === "bulk" ? `${fmt(stats.minPrice / factor)}/${du2}` : `${fmt(stats.minPrice)}/emb`}</span>
+                            <span>·</span>
                             <span>Média {item.type === "bulk" ? `${fmt(stats.avgPrice / factor)}/${du2}` : `${fmt(stats.avgPrice)}/emb`}</span>
                             {lastDate && (
                               <>
@@ -626,7 +632,8 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                           </div>
                         </div>
                         <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-                          <span className="text-teal-400 font-black text-sm whitespace-nowrap">{fmt(lastPriceVal)}</span>
+                          <span className="text-teal-400 font-black text-sm whitespace-nowrap">{fmt(lastPriceVal)}/{item.type === "bulk" ? du2 : "emb"}</span>
+                          {lastDate && <span className="max-w-24 truncate text-[9px] text-slate-500">{new Date(`${lastDate}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {lastMarketByItem[item.id]}</span>}
                           {trend !== null && Math.abs(trend) >= 0.005 && (
                             <span className={`text-[10px] font-bold whitespace-nowrap ${trend > 0 ? "text-red-400" : "text-green-400"}`}>
                               {trend > 0 ? "▲" : "▼"} {Math.abs(trend * 100).toFixed(0)}%
