@@ -6,7 +6,7 @@ import { PriceCompareModal } from "./PriceCompareModal";
 import { fmt } from "../utils";
 import type { Item } from "../types";
 
-type Tool = "calc" | "discount" | "budget" | "unit" | "compare";
+type Tool = "compare" | "unit" | "calc" | "discount";
 type Operator = "+" | "−" | "×" | "÷";
 type Unit = "kg" | "g" | "l" | "ml" | "un";
 const UNITS: { value: Unit; label: string }[] = [
@@ -23,7 +23,7 @@ function Field({ label, value, onChange, placeholder = "0", suffix }: { label: s
 
 export function CalculatorCenterModal({ items, onClose }: { items: Item[]; onClose: () => void }) {
   const { isDark } = useTheme();
-  const [tool, setTool] = useState<Tool>("calc");
+  const [tool, setTool] = useState<Tool>("compare");
   const [display, setDisplay] = useState("0");
   const [stored, setStored] = useState<number | null>(null);
   const [operator, setOperator] = useState<Operator | null>(null);
@@ -31,8 +31,6 @@ export function CalculatorCenterModal({ items, onClose }: { items: Item[]; onClo
   const [price, setPrice] = useState("");
   const [discount, setDiscount] = useState("");
   const [discountMode, setDiscountMode] = useState<"percent" | "amount">("percent");
-  const [budget, setBudget] = useState("");
-  const [spent, setSpent] = useState("");
   const [unitA, setUnitA] = useState({ qty: "", price: "", unit: "g" as Unit });
   const [unitB, setUnitB] = useState({ qty: "", price: "", unit: "kg" as Unit });
 
@@ -80,9 +78,8 @@ export function CalculatorCenterModal({ items, onClose }: { items: Item[]; onClo
   function clearCalc() { setDisplay("0"); setStored(null); setOperator(null); setFresh(false); }
 
   const tabs: { id: Tool; label: string; icon: string }[] = [
-    { id: "calc", label: "Calc", icon: "calculator" }, { id: "discount", label: "Desconto", icon: "tag" },
-    { id: "budget", label: "Orçamento", icon: "cart" }, { id: "unit", label: "Unidades", icon: "scale" },
-    { id: "compare", label: "Comparar", icon: "scale" },
+    { id: "compare", label: "Comparar preços", icon: "scale" }, { id: "unit", label: "Unidades", icon: "scale" },
+    { id: "calc", label: "Calculadora", icon: "calculator" }, { id: "discount", label: "Desconto", icon: "tag" },
   ];
   const softKey = isDark ? "bg-slate-800 text-slate-100 hover:bg-slate-700" : "bg-slate-100 text-slate-800 hover:bg-slate-200";
   const resultCard = `rounded-2xl border p-4 ${isDark ? "bg-teal-500/10 border-teal-500/20" : "bg-teal-50 border-teal-200"}`;
@@ -113,12 +110,6 @@ export function CalculatorCenterModal({ items, onClose }: { items: Item[]; onClo
         <div className="flex gap-2"><button onClick={() => setDiscountMode("percent")} className={`flex-1 rounded-xl py-2 text-sm font-bold ${discountMode === "percent" ? "bg-teal-500 text-white" : softKey}`}>Porcentagem</button><button onClick={() => setDiscountMode("amount")} className={`flex-1 rounded-xl py-2 text-sm font-bold ${discountMode === "amount" ? "bg-teal-500 text-white" : softKey}`}>Valor (R$)</button></div>
         <Field label={discountMode === "percent" ? "Desconto" : "Valor do desconto"} value={discount} onChange={setDiscount} suffix={discountMode === "percent" ? "%" : "R$"} />
         {price && <div className={resultCard}><p className="text-xs font-bold text-slate-500">PREÇO FINAL</p><p className="mt-1 text-3xl font-black text-teal-500">{fmt(Math.max(0, numberOf(price) - (discountMode === "percent" ? numberOf(price) * numberOf(discount) / 100 : numberOf(discount))))}</p><p className="mt-1 text-xs text-slate-500">Economia de {fmt(Math.min(numberOf(price), discountMode === "percent" ? numberOf(price) * numberOf(discount) / 100 : numberOf(discount)))}</p></div>}
-      </div>}
-
-      {tool === "budget" && <div className="space-y-4">
-        <Field label="Orçamento disponível" value={budget} onChange={setBudget} suffix="R$" />
-        <Field label="Valor da compra" value={spent} onChange={setSpent} suffix="R$" />
-        {budget && spent && <div className={resultCard}><p className="text-xs font-bold text-slate-500">{numberOf(budget) >= numberOf(spent) ? "SOBRA" : "FALTA"}</p><p className={`mt-1 text-3xl font-black ${numberOf(budget) >= numberOf(spent) ? "text-teal-500" : "text-red-400"}`}>{fmt(Math.abs(numberOf(budget) - numberOf(spent)))}</p></div>}
       </div>}
 
       {tool === "unit" && <div className="space-y-3">
