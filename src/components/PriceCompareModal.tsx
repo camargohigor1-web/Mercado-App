@@ -21,9 +21,10 @@ interface PriceCompareModalProps {
   items: Item[];
   initialItem?: Item | null;
   onClose: () => void;
+  embedded?: boolean;
 }
 
-export function PriceCompareModal({ items, initialItem = null, onClose }: PriceCompareModalProps) {
+export function PriceCompareModal({ items, initialItem = null, onClose, embedded = false }: PriceCompareModalProps) {
   const { isDark } = useTheme();
   const { purchases } = useAppContext();
   const [selectedItem, setSelectedItem] = useState<Item | null>(initialItem);
@@ -67,8 +68,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
     ? items.filter(i => normalizeText(i.name).includes(normalizedSearch)).slice(0, 6)
     : [];
 
-  return (
-    <Modal title={selectedItem ? `Comparar — ${selectedItem.name}` : "Comparador de preços"} onClose={onClose}>
+  const content = (
       <div className="space-y-4">
         <InfoBox color="blue">Compare tamanhos diferentes para o melhor custo-benefício por unidade.</InfoBox>
         {selectedItem && <div className="grid grid-cols-3 gap-2">{[
@@ -149,9 +149,11 @@ export function PriceCompareModal({ items, initialItem = null, onClose }: PriceC
           </div>
           <Btn onClick={addOption} className="w-full" size="sm"><Icon name="plus" size={13} />Adicionar opção</Btn>
         </div>
-        <Btn onClick={onClose} variant="secondary" className="w-full justify-center">Fechar</Btn>
+        {!embedded && <Btn onClick={onClose} variant="secondary" className="w-full justify-center">Fechar</Btn>}
       </div>
-    </Modal>
   );
+
+  if (embedded) return content;
+  return <Modal title={selectedItem ? `Comparar — ${selectedItem.name}` : "Comparador de preços"} onClose={onClose}>{content}</Modal>;
 }
 

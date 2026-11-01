@@ -7,7 +7,7 @@ import { calcPurchaseHabitStats, fmt } from "../utils";
 import type { Purchase } from "../types";
 
 interface HomeSectionProps {
-  onOpenCompare: () => void;
+  onOpenCalculator: () => void;
   onGoToNewPurchase: () => void;
   onGoToShopping: () => void;
   onGoToHistory: () => void;
@@ -181,7 +181,7 @@ function MonthlyChart({ purchases, selectedMonth, onSelectMonth, isDark }: {
 }
 
 export function HomeSection({
-  onOpenCompare,
+  onOpenCalculator,
   onGoToNewPurchase, onGoToShopping, onGoToHabits, onGoToItems,
   onRepeatPurchase, onGoToReports, onGoToHistoryPurchase, onGoToHistoryItem,
 }: HomeSectionProps) {
@@ -228,9 +228,9 @@ export function HomeSection({
           className={`w-full py-3 rounded-2xl text-sm font-bold border transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
           Cadastrar produtos antes
         </button>
-        <button onClick={onOpenCompare}
+        <button onClick={onOpenCalculator}
           className={`w-full py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
-          <Icon name="calculator" size={16} />Comparar preços
+          <Icon name="calculator" size={16} />Calculadora
         </button>
       </div>
     </div>
@@ -250,9 +250,9 @@ export function HomeSection({
         {activeListCount > 0 ? `Continuar lista · ${activeListCount} ${activeListCount === 1 ? "item" : "itens"}` : "Nova compra"}
       </button>
       {activeListCount > 0 && <button onClick={onGoToNewPurchase} className={`w-full py-2.5 rounded-xl text-sm font-bold border ${isDark ? "border-white/8 text-slate-400" : "border-black/8 text-slate-500"}`}>Registrar compra</button>}
-      <button onClick={onOpenCompare}
+      <button onClick={onOpenCalculator}
         className={`w-full py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
-        <Icon name="calculator" size={16} />Comparar preços
+        <Icon name="calculator" size={16} />Calculadora
       </button>
       <div className={`rounded-2xl border p-4 ${isDark ? "bg-teal-500/8 border-teal-500/20" : "bg-teal-50 border-teal-200/60"}`}>
         <p className={`text-sm font-black ${isDark ? "text-teal-300" : "text-teal-700"}`}>Tudo pronto para sua primeira compra</p>
@@ -279,9 +279,9 @@ export function HomeSection({
           {activeListCount > 0 ? `Continuar lista · ${activeListCount} ${activeListCount === 1 ? "item" : "itens"}` : "Nova compra"}
         </button>
         {activeListCount > 0 && <button onClick={onGoToNewPurchase} className={`w-full mt-2 py-2.5 rounded-xl text-sm font-bold border ${isDark ? "border-white/8 text-slate-400" : "border-black/8 text-slate-500"}`}>Registrar compra</button>}
-        <button onClick={onOpenCompare}
+        <button onClick={onOpenCalculator}
           className={`w-full mt-2.5 py-3 rounded-2xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors press-scale ${isDark ? "border-white/8 text-slate-400 hover:bg-white/5" : "border-black/8 text-slate-500 hover:bg-black/3"}`}>
-          <Icon name="calculator" size={16} />Comparar preços
+          <Icon name="calculator" size={16} />Calculadora
         </button>
       </div>
 

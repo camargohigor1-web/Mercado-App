@@ -20,6 +20,7 @@ const ItemsSection     = lazy(() => import("./components/ItemsSection").then(m =
 const MarketsSection   = lazy(() => import("./components/MarketsSection").then(m => ({ default: m.MarketsSection })));
 const ReportsSection   = lazy(() => import("./components/ReportsSection").then(m => ({ default: m.ReportsSection })));
 const BackupSection    = lazy(() => import("./components/BackupSection").then(m => ({ default: m.BackupSection })));
+const CalculatorCenterModal = lazy(() => import("./components/CalculatorCenterModal").then(m => ({ default: m.CalculatorCenterModal })));
 
 const EXTRA_TABS = ["purchases", "markets", "backup", "reports", "items"];
 
@@ -72,6 +73,7 @@ function AppInner() {
   const [openItemId, setOpenItemId] = useState<string | undefined>(undefined);
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [calculatorModalOpen, setCalculatorModalOpen] = useState(false);
 
   // Listener de erro de storage
   useEffect(() => {
@@ -163,6 +165,7 @@ function AppInner() {
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
       {compareModalOpen && <PriceCompareModal items={items} initialItem={null} onClose={() => setCompareModalOpen(false)} />}
+      {calculatorModalOpen && <Suspense fallback={null}><CalculatorCenterModal items={items} onClose={() => setCalculatorModalOpen(false)} /></Suspense>}
 
       <div className={`min-h-screen ${bg} ${text} flex flex-col max-w-lg mx-auto relative`}>
 
@@ -230,7 +233,7 @@ function AppInner() {
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
                   onGoToShopping={() => setTab("shopping")}
-                  onOpenCompare={() => setCompareModalOpen(true)}
+                  onOpenCalculator={() => setCalculatorModalOpen(true)}
                   onGoToHistory={() => setTab("history")}
                   onGoToHabits={() => setTab("history")}
                   onGoToItems={() => setTab("items")}
