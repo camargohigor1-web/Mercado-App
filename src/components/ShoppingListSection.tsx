@@ -781,6 +781,7 @@ export function ShoppingListSection({
             <button onClick={() => setShareModal(true)} title="Compartilhar lista" className={`p-2 rounded-lg ${isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-100"}`}><Icon name="share" size={16} /></button>
             <button onClick={() => setConvertModal(true)} title="Registrar compra" className="p-2 rounded-lg text-teal-500 hover:bg-teal-500/10"><Icon name="cart" size={16} /></button>
             <button onClick={() => { setSaveName(""); setSaveModal(true); }} title="Salvar lista" className="p-2 rounded-lg text-teal-500 hover:bg-teal-500/10"><Icon name="check" size={16} /></button>
+            <button onClick={() => setClearAllConfirm(true)} title="Limpar lista" aria-label="Limpar todos os itens da lista" className={`p-2 rounded-lg ${isDark ? "text-red-400 hover:bg-red-500/10" : "text-red-500 hover:bg-red-50"}`}><Icon name="trash" size={16} /></button>
           </>}
           {savedLists.length > 0 && <button onClick={() => setSavedListsModal(true)} title="Listas salvas" className={`p-2 rounded-lg ${isDark ? "text-slate-400" : "text-slate-500"}`}><Icon name="list" size={16} /></button>}
         </div>
