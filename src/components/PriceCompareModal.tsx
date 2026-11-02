@@ -38,11 +38,13 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const buyQtyRef = useRef<HTMLInputElement>(null);
   const buyBrandRef = useRef<HTMLInputElement>(null);
   const buyNoteRef = useRef<HTMLInputElement>(null);
+  const itemSearchRef = useRef<HTMLInputElement>(null);
   const sizeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (selectedItem) sizeRef.current?.focus();
+    else itemSearchRef.current?.focus();
   }, [selectedItem]);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
             </div>
           ) : (
             <>
-              <input value={itemSearch} onChange={e => setItemSearch(e.target.value)}
+              <input ref={itemSearchRef} value={itemSearch} onChange={e => setItemSearch(e.target.value)}
                 placeholder="Buscar produto cadastrado..."
                 className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-all`} />
               {searchResults.length > 0 && (
