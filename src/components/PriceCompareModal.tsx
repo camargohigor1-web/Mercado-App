@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
 import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox } from "./ui";
@@ -34,6 +34,10 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const [newOption, setNewOption] = useState({ size: "", price: "" });
   const sizeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectedItem) sizeRef.current?.focus();
+  }, [selectedItem]);
 
   const unit = selectedItem ? getDisplayUnit(selectedItem) : genericUnit;
   const itemStats = selectedItem ? calcStats(selectedItem.id, items, purchases, []) : null;
