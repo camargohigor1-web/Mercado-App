@@ -160,8 +160,8 @@ const MarketItemCard = memo(function MarketItemCard({
         </div>}
 
         <button onClick={onCompare} title={`Comparar preços de ${item.name}`} aria-label={`Comparar preços de ${item.name}`}
-          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${isDark ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>
-          <Icon name="scale" size={15} />
+          className={`w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${isDark ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>
+          <Icon name="compare" size={16} />
         </button>
         <button onClick={onExpand}
           className={`w-8 h-10 flex-shrink-0 flex items-center justify-center transition-all ${
@@ -343,8 +343,8 @@ const PlanItemCard = memo(function PlanItemCard({
             : <p className={`text-[10px] mt-0.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>Sem histórico</p>}
         </button>
         <button type="button" onClick={onCompare} title={`Comparar preços de ${item.name}`} aria-label={`Comparar preços de ${item.name}`}
-          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
-          <Icon name="scale" size={14} />
+          className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-blue-500/15 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+          <Icon name="compare" size={16} />
         </button>
         <button type="button" onClick={onAdd} title={`Adicionar ${item.name} à lista`} aria-label={`Adicionar ${item.name} à lista`}
           className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-teal-500/15 text-teal-400 hover:bg-teal-500/25" : "bg-teal-100 text-teal-600 hover:bg-teal-200"}`}>
@@ -794,7 +794,7 @@ export function ShoppingListSection({
       <div className="flex items-center justify-between gap-2">
         <p className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{pendingCount} pendente{pendingCount !== 1 ? "s" : ""}{doneCount ? ` · ${doneCount} comprado${doneCount !== 1 ? "s" : ""}` : ""}</p>
         <div className="flex items-center gap-1">
-          <button onClick={() => setCompareOpen(true)} title="Comparar preços" className={`p-2 rounded-lg ${isDark ? "text-blue-400 hover:bg-slate-800" : "text-blue-600 hover:bg-blue-50"}`}><Icon name="scale" size={17} /></button>
+          <button onClick={() => setCompareOpen(true)} title="Comparar preços" aria-label="Comparar preços" className={`p-2 rounded-lg ${isDark ? "text-blue-400 hover:bg-slate-800" : "text-blue-600 hover:bg-blue-50"}`}><Icon name="compare" size={19} /></button>
           {activeList.length > 0 && <>
             <button onClick={() => setShareModal(true)} title="Compartilhar lista" className={`p-2 rounded-lg ${isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-100"}`}><Icon name="share" size={16} /></button>
             <button onClick={() => setConvertModal(true)} title="Registrar compra" className="p-2 rounded-lg text-teal-500 hover:bg-teal-500/10"><Icon name="cart" size={16} /></button>

@@ -35,12 +35,21 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const [newOption, setNewOption] = useState({ size: "", price: "" });
   const [buyingOption, setBuyingOption] = useState<number | null>(null);
   const [buyForm, setBuyForm] = useState({ numPkgs: "1", brand: "", note: "" });
+  const buyQtyRef = useRef<HTMLInputElement>(null);
+  const buyBrandRef = useRef<HTMLInputElement>(null);
+  const buyNoteRef = useRef<HTMLInputElement>(null);
   const sizeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (selectedItem) sizeRef.current?.focus();
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (buyingOption === null) return;
+    const timer = window.setTimeout(() => buyQtyRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [buyingOption]);
 
   const unit = selectedItem ? getDisplayUnit(selectedItem) : genericUnit;
   const itemStats = selectedItem ? calcStats(selectedItem.id, items, purchases, []) : null;
@@ -64,6 +73,15 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
       setNewOption({ size: "", price: "" });
       sizeRef.current?.focus();
     }
+  }
+
+  function confirmBuyOption(option: { sizeNum: number; priceNum: number }) {
+    const numPkgs = Number(buyForm.numPkgs);
+    if (!onBuyOption || !selectedItem || !Number.isFinite(numPkgs) || numPkgs <= 0) return;
+    const storedPkgQty = selectedItem.type === "bulk" ? option.sizeNum / priceFactor : option.sizeNum;
+    onBuyOption({ itemId: selectedItem.id, pkgQty: storedPkgQty, pricePerPkg: option.priceNum, numPkgs, brand: buyForm.brand.trim(), note: buyForm.note.trim() });
+    setBuyingOption(null);
+    onClose();
   }
 
   const bestOption = useMemo(() => {
@@ -145,20 +163,13 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
                   {buyingOption === idx && onBuyOption && selectedItem && <div className={`mt-3 border-t pt-3 space-y-3 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
                     <p className="text-xs font-bold">Registrar {selectedItem.name} como comprado</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <Inp label="Embalagens" type="number" value={buyForm.numPkgs} onChange={v => setBuyForm({ ...buyForm, numPkgs: v })} min="1" step="1" />
-                      <Inp label="Marca (opcional)" value={buyForm.brand} onChange={v => setBuyForm({ ...buyForm, brand: v })} placeholder="Marca" />
+                      <Inp inputRef={buyQtyRef} label="Embalagens" type="number" value={buyForm.numPkgs} onChange={v => setBuyForm({ ...buyForm, numPkgs: v })} min="1" step="1" onEnter={() => buyBrandRef.current?.focus()} />
+                      <Inp inputRef={buyBrandRef} label="Marca (opcional)" value={buyForm.brand} onChange={v => setBuyForm({ ...buyForm, brand: v })} placeholder="Marca" onEnter={() => buyNoteRef.current?.focus()} />
                     </div>
-                    <Inp label="Observações (opcional)" value={buyForm.note} onChange={v => setBuyForm({ ...buyForm, note: v })} placeholder="Ex.: promoção" />
+                    <Inp inputRef={buyNoteRef} label="Observações (opcional)" value={buyForm.note} onChange={v => setBuyForm({ ...buyForm, note: v })} placeholder="Ex.: promoção" onEnter={() => confirmBuyOption(opt)} />
                     <div className="flex gap-2">
                       <Btn variant="secondary" onClick={() => setBuyingOption(null)} className="flex-1">Cancelar</Btn>
-                      <Btn onClick={() => {
-                        const numPkgs = Number(buyForm.numPkgs);
-                        if (!Number.isFinite(numPkgs) || numPkgs <= 0) return;
-                        const storedPkgQty = selectedItem.type === "bulk" ? opt.sizeNum / priceFactor : opt.sizeNum;
-                        onBuyOption({ itemId: selectedItem.id, pkgQty: storedPkgQty, pricePerPkg: opt.priceNum, numPkgs, brand: buyForm.brand.trim(), note: buyForm.note.trim() });
-                        setBuyingOption(null);
-                        onClose();
-                      }} className="flex-1">Confirmar</Btn>
+                      <Btn onClick={() => confirmBuyOption(opt)} className="flex-1">Confirmar</Btn>
                     </div>
                   </div>}
                 </Card>

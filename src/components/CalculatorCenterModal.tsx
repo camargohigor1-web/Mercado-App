@@ -78,7 +78,7 @@ export function CalculatorCenterModal({ items, onClose }: { items: Item[]; onClo
   function clearCalc() { setDisplay("0"); setStored(null); setOperator(null); setFresh(false); }
 
   const tabs: { id: Tool; label: string; icon: string }[] = [
-    { id: "compare", label: "Comparar preços", icon: "scale" }, { id: "unit", label: "Unidades", icon: "scale" },
+    { id: "compare", label: "Comparar preços", icon: "compare" }, { id: "unit", label: "Unidades", icon: "scale" },
     { id: "calc", label: "Calculadora", icon: "calculator" }, { id: "discount", label: "Desconto", icon: "tag" },
   ];
   const softKey = isDark ? "bg-slate-800 text-slate-100 hover:bg-slate-700" : "bg-slate-100 text-slate-800 hover:bg-slate-200";

@@ -540,7 +540,7 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
         ))}
       </div>
 
-      {onOpenCompare && <button onClick={onOpenCompare} className={`w-full py-2.5 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 ${isDark ? "border-slate-800 text-blue-400 hover:bg-slate-900" : "border-slate-200 text-blue-600 hover:bg-blue-50"}`}><Icon name="scale" size={15}/>Comparar preços</button>}
+      {onOpenCompare && <button onClick={onOpenCompare} className={`w-full py-2.5 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 ${isDark ? "border-slate-800 text-blue-400 hover:bg-slate-900" : "border-slate-200 text-blue-600 hover:bg-blue-50"}`}><Icon name="compare" size={17}/>Comparar preços</button>}
 
       {/* Filtros rápidos de período */}
       <div className="flex gap-1.5 flex-wrap">
