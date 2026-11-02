@@ -314,9 +314,10 @@ export function calcStats(
         });
       } else {
         const effectivePricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
+        const effectivePkgQty = l.pkgQty || item.pkgSize || 1;
         const effectivePricePerInternal =
-          l.discountTotal > 0
-            ? effectivePricePerPkg / (item.pkgSize || 1)
+          l.discountTotal > 0 || l.pkgQty
+            ? effectivePricePerPkg / effectivePkgQty
             : l.pricePerInternal;
         entries.push({
           qty: l.numPkgs,
@@ -325,6 +326,7 @@ export function calcStats(
           date: p.date,
           market: p.marketId,
           numPkgs: l.numPkgs,
+          pkgQty: l.pkgQty,
           discountTotal: l.discountTotal,
           discountPerPkg: l.discountPerPkg,
           pricePerPkgAfterDiscount: l.pricePerPkgAfterDiscount,
@@ -526,7 +528,7 @@ export function calcPurchaseHabitStats(
     lines.forEach(line => {
       const qty = item.type === "bulk" ? (line.totalQty ?? 0) : line.numPkgs;
       purchaseQty += qty;
-      purchaseInternalQty += item.type === "packaged" ? qty * (item.pkgSize || 1) : qty;
+      purchaseInternalQty += item.type === "packaged" ? qty * (line.pkgQty || item.pkgSize || 1) : qty;
       purchaseSpent += line.total || 0;
     });
 

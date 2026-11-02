@@ -48,6 +48,12 @@ export interface ShoppingListItem {
   done: boolean;
   saved: false;
   qty?: number; // quantidade desejada na lista
+  purchaseDetails?: {
+    pkgQty: number;
+    pricePerPkg: number;
+    brand?: string;
+    note?: string;
+  };
 }
 
 export interface SavedShoppingList {

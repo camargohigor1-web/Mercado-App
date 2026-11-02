@@ -57,14 +57,14 @@ export function CategoryPills({
 
 // ─── MarketItemCard ───────────────────────────────────────────────────────────
 const MarketItemCard = memo(function MarketItemCard({
-  itemId, item, stats, qty, done = false, isDark, isExpanded,
-  onToggle, onRemove, onExpand, onQtyChange,
+  itemId, item, stats, qty, done = false, isDark, isExpanded, inList = true,
+  onToggle, onRemove, onExpand, onQtyChange, onAdd,
   recentEntries, priceEvolution, habit, onNavigatePurchase, onCompare,
 }: {
   itemId: string; item: Item; stats: ReturnType<typeof calcStats>;
-  qty: number; done?: boolean; isDark: boolean; isExpanded: boolean;
+  qty: number; done?: boolean; isDark: boolean; isExpanded: boolean; inList?: boolean;
   onToggle: () => void; onRemove: () => void; onExpand: () => void;
-  onQtyChange: (val: number) => void; recentEntries: any[];
+  onQtyChange: (val: number) => void; onAdd?: () => void; recentEntries: any[];
   priceEvolution: LineChartPoint[];
   habit: ReturnType<typeof calcPurchaseHabitStats>;
   onNavigatePurchase?: (purchaseId: string, itemId: string) => void;
@@ -109,12 +109,12 @@ const MarketItemCard = memo(function MarketItemCard({
     }`}>
       {/* ── Main row ── */}
       <div className="flex items-center gap-2.5 px-3 py-3">
-        <button onClick={onToggle}
+        {inList ? <button onClick={onToggle}
           className={`w-10 h-10 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all active:scale-90 ${
             isDark ? "border-slate-600 hover:border-teal-400" : "border-slate-300 hover:border-teal-500"
           } ${done ? "bg-teal-500 border-teal-500" : ""}`}>
           {done ? <Icon name="check" size={12} /> : <div className={`w-2.5 h-2.5 rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />}
-        </button>
+        </button> : <button onClick={onAdd} aria-label={`Adicionar ${item.name} à lista`} className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-100 text-teal-600"}`}><Icon name="plus" size={14} /></button>}
 
         <button onClick={onExpand} className="flex-1 min-w-0 text-left">
           <p className={`text-sm font-bold truncate ${done ? "line-through text-slate-500" : isDark ? "text-slate-100" : "text-slate-900"}`}>{item.name}</p>
@@ -141,7 +141,7 @@ const MarketItemCard = memo(function MarketItemCard({
         </button>
 
         {/* Qty controls */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        {inList && <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={() => onQtyChange(qty - 1)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black transition-colors active:scale-90 ${
               isDark ? "bg-slate-800 text-slate-500 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:text-slate-700"
@@ -157,11 +157,11 @@ const MarketItemCard = memo(function MarketItemCard({
             className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black transition-colors active:scale-90 ${
               isDark ? "bg-slate-800 text-slate-500 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:text-slate-700"
             }`}>+</button>
-        </div>
+        </div>}
 
-        <button onClick={onRemove} title={`Remover ${item.name} da lista`} aria-label={`Remover ${item.name} da lista`}
-          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${isDark ? "text-slate-600 hover:text-red-400 hover:bg-red-500/10" : "text-slate-400 hover:text-red-500 hover:bg-red-50"}`}>
-          <Icon name="trash" size={14} />
+        <button onClick={onCompare} title={`Comparar preços de ${item.name}`} aria-label={`Comparar preços de ${item.name}`}
+          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center transition-colors ${isDark ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>
+          <Icon name="scale" size={15} />
         </button>
         <button onClick={onExpand}
           className={`w-8 h-10 flex-shrink-0 flex items-center justify-center transition-all ${
@@ -264,27 +264,21 @@ const MarketItemCard = memo(function MarketItemCard({
 
           {/* Action row */}
           <div className="flex gap-2 pt-0.5">
-            <button onClick={onToggle}
+            {inList && <button onClick={onToggle}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                 isDark ? "bg-teal-500/15 text-teal-400 border border-teal-500/30 hover:bg-teal-500/25"
                        : "bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"
               }`}>
               <Icon name="check" size={13} />{done ? "Desmarcar compra" : "Marcar comprado"}
-            </button>
-            <button onClick={onCompare}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                isDark ? "bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20"
-                       : "bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
-              }`}>
-              <Icon name="scale" size={13} />
-            </button>
-            <button onClick={onRemove}
+            </button>}
+            {!inList && <button onClick={onAdd} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold ${isDark ? "bg-teal-500/15 text-teal-400" : "bg-teal-50 text-teal-700"}`}><Icon name="plus" size={13} />Adicionar à lista</button>}
+            {inList && <button onClick={onRemove}
               className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                 isDark ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
                        : "bg-red-50 text-red-500 border border-red-100 hover:bg-red-100"
               }`}>
               <Icon name="trash" size={13} />
-            </button>
+            </button>}
           </div>
         </div>
       )}
@@ -615,7 +609,7 @@ export function ShoppingListSection({
   const toggleDone = useCallback((itemId: string) => {
     setShoppingList(shoppingList.map((l) =>
       !l.saved && (l as ShoppingListItem).itemId === itemId
-        ? { ...l, done: !(l as ShoppingListItem).done } : l
+        ? { ...l, done: !(l as ShoppingListItem).done, ...((l as ShoppingListItem).done ? { purchaseDetails: undefined } : {}) } : l
     ) as typeof shoppingList);
     setExpandedId((id) => (id === itemId ? null : id));
     const item = items.find(entry => entry.id === itemId);
@@ -697,9 +691,19 @@ export function ShoppingListSection({
       const item = items.find((i) => i.id === li.itemId);
       if (!item) return null;
       const stats = statsCache[li.itemId];
+      const qty = (li as any).qty || 1;
+      if (li.purchaseDetails) {
+        const { pkgQty, pricePerPkg, brand, note } = li.purchaseDetails;
+        const total = qty * pricePerPkg;
+        if (item.type === "bulk") {
+          const pricePerUnit = pricePerPkg / (pkgQty || 1);
+          return { itemId: li.itemId, numPkgs: qty, pkgQty, totalQty: qty * pkgQty, pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg, discountTotal: 0, discountPerPkg: 0, pricePerUnit, total, brand, note } as PurchaseLine;
+        }
+        const pricePerInternal = pricePerPkg / (pkgQty || 1);
+        return { itemId: li.itemId, numPkgs: qty, pkgQty, pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg, discountTotal: 0, discountPerPkg: 0, pricePerInternal, total, brand, note } as PurchaseLine;
+      }
       if (!stats || !stats.entries.length) return null;
       const last = stats.entries[stats.entries.length - 1];
-      const qty = (li as any).qty || 1;
       if (item.type === "bulk") {
         const pricePerUnit = last.pricePerUnit || 0;
         const pkgQty = last.pkgQty || 1;
@@ -726,6 +730,20 @@ export function ShoppingListSection({
   // ── Price compare ──────────────────────────────────────────────────────────
   function openCompare(item: Item) {
     setCompareItem(item); setCompareOpen(true);
+  }
+
+  function addComparedPurchase(purchase: { itemId: string; pkgQty: number; pricePerPkg: number; numPkgs: number; brand: string; note: string }) {
+    const existing = activeList.find(entry => entry.itemId === purchase.itemId);
+    const purchaseDetails = { pkgQty: purchase.pkgQty, pricePerPkg: purchase.pricePerPkg, brand: purchase.brand, note: purchase.note };
+    setShoppingList(existing
+      ? shoppingList.map(entry => !entry.saved && entry.itemId === purchase.itemId
+        ? { ...entry, done: true, qty: purchase.numPkgs, purchaseDetails }
+        : entry)
+      : [...shoppingList, { itemId: purchase.itemId, done: true, saved: false, qty: purchase.numPkgs, purchaseDetails }]);
+    const item = items.find(entry => entry.id === purchase.itemId);
+    setExpandedId(purchase.itemId);
+    if (item) setExpandedDoneCategories(prev => ({ ...prev, [item.category || "Sem categoria"]: true }));
+    if (item) showToast(`${item.name} registrado como comprado`);
   }
 
   // ── Navigate ───────────────────────────────────────────────────────────────
@@ -801,7 +819,7 @@ export function ShoppingListSection({
       {Object.entries(availableGroups).map(([cat, entries]) => {
         const visible = entries.filter(i => !filterCatMarket || (i.category || "Sem categoria") === filterCatMarket);
         if (!visible.length) return null;
-        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat} · para adicionar</p><div className="space-y-2">{visible.map(item => <PlanItemCard key={item.id} item={item} stats={statsCache[item.id]??null} habit={habitCache[item.id]??null} isDark={isDark} isExpanded={expandedId===item.id} onExpand={()=>setExpandedId(expandedId===item.id?null:item.id)} onAdd={()=>addItem(item.id)} onCompare={()=>openCompare(item)}/>)}</div></section>;
+        return <section key={cat} className="space-y-2"><p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{cat} · para adicionar</p><div className="space-y-2">{visible.map(item => <MarketItemCard key={item.id} itemId={item.id} item={item} stats={statsCache[item.id] ?? null} qty={1} isDark={isDark} isExpanded={expandedId===item.id} inList={false} onToggle={()=>{}} onRemove={()=>{}} onExpand={()=>setExpandedId(expandedId===item.id?null:item.id)} onQtyChange={()=>{}} onAdd={()=>addItem(item.id)} recentEntries={recentEntriesCache[item.id]||[]} priceEvolution={priceEvolutionCache[item.id]||[]} habit={habitCache[item.id]||null} onNavigatePurchase={(onGoToHistoryPurchase||onGoToHistoryPurchaseWithProduct)?handleNavigatePurchase:undefined} onCompare={()=>openCompare(item)}/>)}</div></section>;
       })}
       {!orderedList.length && !matchedAvailable.length && <Empty icon="search" title={q ? `Nenhum resultado para "${marketSearch}"` : "Nenhum produto cadastrado"} />}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
@@ -815,7 +833,7 @@ export function ShoppingListSection({
 
       {/* Price Compare */}
       {compareOpen && (
-        <PriceCompareModal items={items} initialItem={compareItem} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
+        <PriceCompareModal items={items} initialItem={compareItem} onBuyOption={addComparedPurchase} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
       )}
 
 
@@ -916,12 +934,12 @@ export function ShoppingListSection({
       {convertModal && (
         <Modal title="Converter em Compra" onClose={() => setConvertModal(false)}>
           <div className="space-y-4">
-            <InfoBox color="teal">Os itens com histórico serão adicionados com o último preço. Ajuste antes de salvar.</InfoBox>
+            <InfoBox color="teal">Itens com preço registrado no comparador usam esse valor. Os demais usam o último preço do histórico; itens sem histórico precisam ser preenchidos na compra.</InfoBox>
             <div className="space-y-1.5">
               {activeList.map((li) => {
                 const item = items.find((i) => i.id === li.itemId);
                 if (!item) return null;
-                const hasHistory = (statsCache[li.itemId]?.entries?.length ?? 0) > 0;
+                const hasHistory = !!li.purchaseDetails || (statsCache[li.itemId]?.entries?.length ?? 0) > 0;
                 return (
                   <div key={li.itemId} className={`flex items-center justify-between px-3 py-2 ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-xl`}>
                     <div>

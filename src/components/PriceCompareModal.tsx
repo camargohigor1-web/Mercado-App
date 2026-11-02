@@ -22,9 +22,10 @@ interface PriceCompareModalProps {
   initialItem?: Item | null;
   onClose: () => void;
   embedded?: boolean;
+  onBuyOption?: (purchase: { itemId: string; pkgQty: number; pricePerPkg: number; numPkgs: number; brand: string; note: string }) => void;
 }
 
-export function PriceCompareModal({ items, initialItem = null, onClose, embedded = false }: PriceCompareModalProps) {
+export function PriceCompareModal({ items, initialItem = null, onClose, embedded = false, onBuyOption }: PriceCompareModalProps) {
   const { isDark } = useTheme();
   const { purchases } = useAppContext();
   const [selectedItem, setSelectedItem] = useState<Item | null>(initialItem);
@@ -32,6 +33,8 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const [genericUnit, setGenericUnit] = useState("un");
   const [options, setOptions] = useState<{ sizeNum: number; priceNum: number; unit: string }[]>([]);
   const [newOption, setNewOption] = useState({ size: "", price: "" });
+  const [buyingOption, setBuyingOption] = useState<number | null>(null);
+  const [buyForm, setBuyForm] = useState({ numPkgs: "1", brand: "", note: "" });
   const sizeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
@@ -48,6 +51,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
     setSelectedItem(item);
     setOptions([]);
     setNewOption({ size: "", price: "" });
+    setBuyingOption(null);
     setItemSearch("");
   }
 
@@ -113,9 +117,9 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
             {options.map((opt, idx) => {
               const ppu = opt.priceNum / opt.sizeNum;
               const isBest = !!bestOption && Math.abs(bestOption.ppu - ppu) < 0.001;
-              const min = itemStats ? historicalPrice(itemStats.minPrice) : null;
-              const average = itemStats ? historicalPrice(itemStats.avgPrice) : null;
-              const last = itemStats ? historicalPrice(itemStats.lastPrice) : null;
+              const min = itemStats ? selectedItem?.type === "bulk" ? historicalPrice(itemStats.minPrice) : itemStats.minInternal ?? null : null;
+              const average = itemStats ? selectedItem?.type === "bulk" ? historicalPrice(itemStats.avgPrice) : itemStats.avgInternal ?? null : null;
+              const last = itemStats ? selectedItem?.type === "bulk" ? historicalPrice(itemStats.lastPrice) : itemStats.lastInternal ?? null : null;
               const priceContext = min !== null && ppu < min ? "Abaixo do mínimo histórico" : average !== null && ppu <= average ? "Abaixo da média histórica" : last !== null && ppu <= last ? "Abaixo do último preço" : last !== null ? "Acima do último preço" : null;
               return (
                 <Card key={idx} className={isBest ? "border-teal-500/50 bg-teal-500/5" : ""}>
@@ -134,7 +138,29 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
                       className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}>
                       <Icon name="trash" size={13} />
                     </button>
+                    {onBuyOption && selectedItem && <button onClick={() => { setBuyingOption(buyingOption === idx ? null : idx); setBuyForm({ numPkgs: "1", brand: "", note: "" }); }} title="Registrar como comprado" aria-label="Registrar como comprado" className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-teal-500 hover:bg-teal-500/10">
+                      <Icon name="cart" size={15} />Comprar
+                    </button>}
                   </div>
+                  {buyingOption === idx && onBuyOption && selectedItem && <div className={`mt-3 border-t pt-3 space-y-3 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                    <p className="text-xs font-bold">Registrar {selectedItem.name} como comprado</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Inp label="Embalagens" type="number" value={buyForm.numPkgs} onChange={v => setBuyForm({ ...buyForm, numPkgs: v })} min="1" step="1" />
+                      <Inp label="Marca (opcional)" value={buyForm.brand} onChange={v => setBuyForm({ ...buyForm, brand: v })} placeholder="Marca" />
+                    </div>
+                    <Inp label="Observações (opcional)" value={buyForm.note} onChange={v => setBuyForm({ ...buyForm, note: v })} placeholder="Ex.: promoção" />
+                    <div className="flex gap-2">
+                      <Btn variant="secondary" onClick={() => setBuyingOption(null)} className="flex-1">Cancelar</Btn>
+                      <Btn onClick={() => {
+                        const numPkgs = Number(buyForm.numPkgs);
+                        if (!Number.isFinite(numPkgs) || numPkgs <= 0) return;
+                        const storedPkgQty = selectedItem.type === "bulk" ? opt.sizeNum / priceFactor : opt.sizeNum;
+                        onBuyOption({ itemId: selectedItem.id, pkgQty: storedPkgQty, pricePerPkg: opt.priceNum, numPkgs, brand: buyForm.brand.trim(), note: buyForm.note.trim() });
+                        setBuyingOption(null);
+                        onClose();
+                      }} className="flex-1">Confirmar</Btn>
+                    </div>
+                  </div>}
                 </Card>
               );
             })}

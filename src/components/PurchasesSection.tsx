@@ -126,8 +126,9 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
       const pricePerUnit = pricePerPkgAfterDiscount / pkgQty;
       line = { itemId: lf.itemId, numPkgs, pkgQty, totalQty, pricePerPkg, pricePerPkgAfterDiscount, discountTotal, discountPerPkg, pricePerUnit, total, brand: lf.brand, note: lf.note };
     } else {
-      const pricePerInternal = pricePerPkgAfterDiscount / (it.pkgSize || 1);
-      line = { itemId: lf.itemId, numPkgs, pricePerPkg, pricePerPkgAfterDiscount, discountTotal, discountPerPkg, pricePerInternal, total, brand: lf.brand, note: lf.note };
+      const pkgQty = parseFloat(lf.pkgQty) || it.pkgSize || 1;
+      const pricePerInternal = pricePerPkgAfterDiscount / pkgQty;
+      line = { itemId: lf.itemId, numPkgs, pkgQty, pricePerPkg, pricePerPkgAfterDiscount, discountTotal, discountPerPkg, pricePerInternal, total, brand: lf.brand, note: lf.note };
     }
     if (editIdx !== null) { const ls = [...form.lines]; ls[editIdx] = line; setForm({ ...form, lines: ls }); }
     else setForm({ ...form, lines: [...form.lines, line] });
@@ -358,10 +359,10 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     }
     // Packaged
     const afterPricePerPkg = l.pricePerPkgAfterDiscount ?? l.pricePerPkg;
-    const afterPricePerInternal = afterPricePerPkg / (it.pkgSize || 1);
+    const afterPricePerInternal = afterPricePerPkg / (l.pkgQty || it.pkgSize || 1);
     const unitLabel = it.pkgUnit?.replace(/s$/, "") || "un";
     return {
-      main: `${l.numPkgs} emb x ${fmt(l.pricePerPkg)}/emb`,
+      main: `${l.numPkgs} emb x ${fmtN(l.pkgQty || it.pkgSize || 1, 3).replace(/,?0+$/, "")} ${unitLabel} · ${fmt(l.pricePerPkg)}/emb`,
       priceOriginal: hasDiscount ? `${fmt(l.pricePerInternal || 0)}/${unitLabel}` : null,
       priceFinal: hasDiscount
         ? `${fmt(afterPricePerPkg)}/emb (${fmt(afterPricePerInternal)}/${unitLabel}) c/ desc`

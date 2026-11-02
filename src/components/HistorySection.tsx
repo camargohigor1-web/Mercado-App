@@ -492,11 +492,11 @@ export function HistorySection({ onGoToNewPurchase, onRepeatPurchase, initialPur
                       </>
                     ) : (
                       <>
-                        <p className="text-xs text-slate-500 mt-1">{l.numPkgs} emb x {fmt(l.pricePerPkg)}/emb</p>
+                        <p className="text-xs text-slate-500 mt-1">{l.numPkgs} emb x {fmtN(l.pkgQty || it.pkgSize || 1, 3).replace(/,?0+$/, "")} {it.pkgUnit} · {fmt(l.pricePerPkg)}/emb</p>
                         {l.discountTotal > 0 ? (
                           <>
                             <p className="text-xs text-teal-500 font-semibold">{fmt(l.pricePerPkgAfterDiscount ?? l.pricePerPkg)}/emb <span className="text-amber-400 font-normal">(c/ desc)</span></p>
-                            <p className="text-xs text-slate-500">{fmt((l.pricePerPkgAfterDiscount ?? l.pricePerPkg) / (it.pkgSize || 1))}/{it.pkgUnit?.replace(/s$/, "")} c/ desc</p>
+                            <p className="text-xs text-slate-500">{fmt((l.pricePerPkgAfterDiscount ?? l.pricePerPkg) / (l.pkgQty || it.pkgSize || 1))}/{it.pkgUnit?.replace(/s$/, "")} c/ desc</p>
                             <p className="text-xs text-amber-400 flex items-center gap-1 mt-0.5"><Icon name="tag" size={10} />Desc: {fmt(l.discountTotal)} total · {fmt(l.discountPerPkg)}/emb</p>
                           </>
                         ) : (
