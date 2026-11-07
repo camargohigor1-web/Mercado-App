@@ -719,8 +719,6 @@ export function ShoppingListSection({
     }).filter(Boolean) as PurchaseLine[];
     if (lines.length > 0) {
       onConvertToPurchase(lines);
-      const purchasedIds = new Set(lines.map(line => line.itemId));
-      setShoppingList(shoppingList.filter(entry => entry.saved || !purchasedIds.has((entry as ShoppingListItem).itemId)));
       setConvertModal(false);
     }
   }

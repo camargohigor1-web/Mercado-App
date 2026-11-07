@@ -90,8 +90,9 @@ function AppInner() {
   }
 
   function handlePurchaseCreatedFromList() {
+    const purchasedIds = new Set((pendingLines || []).map(line => line.itemId));
     setPendingLines(null);
-    setList(list.filter((l: any) => l.saved));
+    setList(list.filter((entry: any) => entry.saved || !purchasedIds.has(entry.itemId)));
     showToast("Compra registrada com sucesso!");
   }
 
