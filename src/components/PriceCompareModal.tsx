@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
-import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox } from "./ui";
+import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox, LineChart } from "./ui";
 import { MoneyInp } from "./MoneyInput";
 import { fmt, fmtN, getDisplayUnit, calcStats, getDisplayFactor } from "../utils";
+import type { ComparisonOption } from "../types";
 import { useAppContext } from "../context/AppContext";
 import type { Item } from "../types";
 
@@ -22,17 +23,19 @@ interface PriceCompareModalProps {
   initialItem?: Item | null;
   onClose: () => void;
   embedded?: boolean;
+  initialOptions?: ComparisonOption[];
+  onOptionsChange?: (options: ComparisonOption[]) => void;
   onBuyOption?: (purchase: { itemId: string; pkgQty: number; pricePerPkg: number; numPkgs: number; brand: string; note: string }) => void;
 }
 
-export function PriceCompareModal({ items, initialItem = null, onClose, embedded = false, onBuyOption }: PriceCompareModalProps) {
+export function PriceCompareModal({ items, initialItem = null, onClose, embedded = false, initialOptions = [], onOptionsChange, onBuyOption }: PriceCompareModalProps) {
   const { isDark } = useTheme();
   const { purchases } = useAppContext();
   const [selectedItem, setSelectedItem] = useState<Item | null>(initialItem);
   const [itemSearch, setItemSearch] = useState("");
   const [genericUnit, setGenericUnit] = useState("un");
-  const [options, setOptions] = useState<{ sizeNum: number; priceNum: number; unit: string }[]>([]);
-  const [newOption, setNewOption] = useState({ size: "", price: "" });
+  const [options, setOptions] = useState<ComparisonOption[]>(initialOptions);
+  const [newOption, setNewOption] = useState({ size: initialItem?.type === "packaged" && initialItem.pkgSize ? String(initialItem.pkgSize) : "", price: "" });
   const [buyingOption, setBuyingOption] = useState<number | null>(null);
   const [buyForm, setBuyForm] = useState({ numPkgs: "1", brand: "", note: "" });
   const buyQtyRef = useRef<HTMLInputElement>(null);
@@ -58,10 +61,15 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const priceFactor = selectedItem ? getDisplayFactor(selectedItem) : 1;
   const historicalPrice = (value: number) => selectedItem?.type === "bulk" ? value / priceFactor : value;
 
+  function updateOptions(next: ComparisonOption[]) {
+    setOptions(next);
+    if (!initialItem || selectedItem?.id === initialItem.id) onOptionsChange?.(next);
+  }
+
   function pickItem(item: Item | null) {
     setSelectedItem(item);
     setOptions([]);
-    setNewOption({ size: "", price: "" });
+    setNewOption({ size: item?.type === "packaged" && item.pkgSize ? String(item.pkgSize) : "", price: "" });
     setBuyingOption(null);
     setItemSearch("");
   }
@@ -71,7 +79,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
     const size = Number(newOption.size.replace(",", "."));
     const price = Number(newOption.price.replace(",", "."));
     if (size > 0 && price >= 0) {
-      setOptions(prev => [...prev, { sizeNum: size, priceNum: price, unit }]);
+      updateOptions([...options, { sizeNum: size, priceNum: price, unit, note: "" }]);
       setNewOption({ size: "", price: "" });
       sizeRef.current?.focus();
     }
@@ -96,12 +104,26 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
     ? items.filter(i => normalizeText(i.name).includes(normalizedSearch)).slice(0, 6)
     : [];
 
+  const itemHistory = selectedItem ? purchases.flatMap(p => p.lines
+    .filter(line => line.itemId === selectedItem.id)
+    .map(line => ({ purchase: p, line })))
+    .sort((a, b) => a.purchase.date.localeCompare(b.purchase.date)) : [];
+  const chartData = selectedItem ? itemHistory.map(({ purchase, line }) => ({
+    label: new Date(purchase.date + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+    value: selectedItem.type === "bulk" ? historicalPrice(line.pricePerUnit || 0) : line.pricePerPkgAfterDiscount ?? line.pricePerPkg,
+    date: purchase.date,
+    qty: selectedItem.type === "bulk" ? `${fmtN(line.totalQty || 0, 2)} ${unit}` : `${line.numPkgs} emb`,
+  })) : [];
+
   const content = (
       <div className="space-y-4">
         <InfoBox color="blue">Compare tamanhos diferentes para o melhor custo-benefício por unidade.</InfoBox>
-        {selectedItem && <div className="grid grid-cols-3 gap-2">{[
-          { label: "Mínimo", value: itemStats?.minPrice }, { label: "Médio", value: itemStats?.avgPrice }, { label: "Último", value: itemStats?.lastPrice },
-        ].map(({label,value}) => <div key={label} className={`rounded-xl p-2.5 ${isDark ? "bg-slate-900" : "bg-slate-50"}`}><p className="text-[9px] font-bold uppercase text-slate-500">{label}</p><p className="mt-1 text-sm font-black">{value == null ? "—" : fmt(historicalPrice(value))}</p><p className="text-[9px] text-slate-500">/{selectedItem.type === "bulk" ? unit : "emb"}</p></div>)}</div>}
+        {selectedItem && <>
+          <div className="grid grid-cols-3 gap-2">{[
+            { label: "Mínimo", value: itemStats?.minPrice }, { label: "Médio", value: itemStats?.avgPrice }, { label: "Último", value: itemStats?.lastPrice },
+          ].map(({label,value}) => <div key={label} className={`rounded-xl p-2.5 ${isDark ? "bg-slate-900" : "bg-slate-50"}`}><p className="text-[9px] font-bold uppercase text-slate-500">{label}</p><p className="mt-1 text-sm font-black">{value == null ? "—" : fmt(historicalPrice(value))}</p><p className="text-[9px] text-slate-500">/{selectedItem.type === "bulk" ? unit : "emb"}</p></div>)}</div>
+          {chartData.length >= 2 && <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}><LineChart data={chartData} formatValue={fmt} unit={selectedItem.type === "bulk" ? `R$/${unit}` : "R$/emb"} /></div>}
+        </>}
 
         <div className="space-y-2">
           <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Produto (opcional)</p>
@@ -152,9 +174,10 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
                         {isBest && <Badge color="teal">Melhor custo</Badge>}
                       </div>
                       <p className="text-xs text-slate-500">{fmt(opt.priceNum)} · <span className="text-teal-400 font-semibold">{fmt(ppu)}/{opt.unit}</span></p>
+                      {selectedItem?.type === "packaged" && selectedItem.pkgSize && selectedItem.pkgUnit && <p className="mt-1 text-[10px] text-slate-500">Embalagem cadastrada: {fmtN(selectedItem.pkgSize, 3)} {selectedItem.pkgUnit} · estimado {fmt(ppu * selectedItem.pkgSize)}/emb.</p>}
                       {priceContext && <p className={`mt-1 text-[10px] font-semibold ${priceContext.startsWith("Abaixo") ? "text-teal-500" : "text-amber-500"}`}>{priceContext}</p>}
                     </div>
-                    <button onClick={() => setOptions(options.filter((_, i) => i !== idx))}
+                    <button onClick={() => updateOptions(options.filter((_, i) => i !== idx))}
                       className={`p-1 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}>
                       <Icon name="trash" size={13} />
                     </button>
@@ -162,8 +185,12 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
                       <Icon name="cart" size={15} />Comprar
                     </button>}
                   </div>
+                  <div className="mt-2">
+                    <Inp label="Observação (opcional)" value={opt.note || ""} onChange={value => updateOptions(options.map((option, i) => i === idx ? { ...option, note: value } : option))} placeholder="Ex.: promoção, marca, validade" />
+                  </div>
                   {buyingOption === idx && onBuyOption && selectedItem && <div className={`mt-3 border-t pt-3 space-y-3 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
                     <p className="text-xs font-bold">Registrar {selectedItem.name} como comprado</p>
+                    <p className="text-xs text-teal-500">Total: {fmt(opt.priceNum * (Number(buyForm.numPkgs) || 0))}</p>
                     <div className="grid grid-cols-2 gap-2">
                       <Inp inputRef={buyQtyRef} label="Embalagens" type="number" value={buyForm.numPkgs} onChange={v => setBuyForm({ ...buyForm, numPkgs: v })} min="1" step="1" onEnter={() => buyBrandRef.current?.focus()} />
                       <Inp inputRef={buyBrandRef} label="Marca (opcional)" value={buyForm.brand} onChange={v => setBuyForm({ ...buyForm, brand: v })} placeholder="Marca" onEnter={() => buyNoteRef.current?.focus()} />

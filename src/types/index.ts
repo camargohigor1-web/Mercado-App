@@ -54,6 +54,14 @@ export interface ShoppingListItem {
     brand?: string;
     note?: string;
   };
+  comparisonOptions?: ComparisonOption[];
+}
+
+export interface ComparisonOption {
+  sizeNum: number;
+  priceNum: number;
+  unit: string;
+  note?: string;
 }
 
 export interface SavedShoppingList {

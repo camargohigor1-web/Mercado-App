@@ -8,7 +8,7 @@ import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart }
 import { PriceCompareModal } from "./PriceCompareModal";
 import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
-import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine } from "../types";
+import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine, ComparisonOption } from "../types";
 
 const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
@@ -124,6 +124,7 @@ const MarketItemCard = memo(function MarketItemCard({
                 <span className="text-[11px] text-blue-400 font-semibold">
                   {fmt(lastPrice)}/{item.type === "bulk" ? du : "emb"}
                 </span>
+                {item.type === "packaged" && item.pkgSize && <span className="text-[10px] text-slate-500">{fmtN(item.pkgSize, 3).replace(/,?0+$/, "")} {item.pkgUnit || "un"}/emb.</span>}
                 {priceVsAvg !== null && Math.abs(priceVsAvg) > 2 && (
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
                     priceVsAvg > 0
@@ -426,6 +427,7 @@ export function ShoppingListSection({
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const activeList = useMemo(() => shoppingList.filter((l): l is ShoppingListItem => !l.saved), [shoppingList]);
+  const compareListItem = compareItem ? activeList.find(entry => entry.itemId === compareItem.id) : undefined;
   const savedLists  = useMemo(() => shoppingList.filter((l): l is SavedShoppingList => l.saved), [shoppingList]);
   const inListSet   = useMemo(() => new Set(activeList.map((l) => l.itemId)), [activeList]);
 
@@ -645,7 +647,7 @@ export function ShoppingListSection({
   function commitSaveAsNew() {
     const saved: SavedShoppingList = {
       id: uid(), name: saveName.trim(),
-      date: new Date().toISOString().slice(0, 10), items: activeList, saved: true,
+      date: new Date().toISOString().slice(0, 10), items: activeList.map(({ comparisonOptions: _options, ...entry }) => entry), saved: true,
     };
     setShoppingList([...shoppingList.filter((l) => l.saved), saved, ...shoppingList.filter((l) => !l.saved)]);
     setSaveModal(false); setDupModal(null); setSaveName("");
@@ -655,7 +657,7 @@ export function ShoppingListSection({
     if (!dupModal) return;
     const updated: SavedShoppingList = {
       id: dupModal.existingId, name: dupModal.name,
-      date: new Date().toISOString().slice(0, 10), items: activeList, saved: true,
+      date: new Date().toISOString().slice(0, 10), items: activeList.map(({ comparisonOptions: _options, ...entry }) => entry), saved: true,
     };
     setShoppingList([
       ...shoppingList.filter((l) => l.saved && (l as SavedShoppingList).id !== dupModal.existingId),
@@ -667,7 +669,7 @@ export function ShoppingListSection({
   function updateSavedListDirect(listId: string) {
     const listName = savedLists.find((l) => l.id === listId)?.name || "";
     const updated: SavedShoppingList = {
-      id: listId, name: listName, date: new Date().toISOString().slice(0, 10), items: activeList, saved: true,
+      id: listId, name: listName, date: new Date().toISOString().slice(0, 10), items: activeList.map(({ comparisonOptions: _options, ...entry }) => entry), saved: true,
     };
     setShoppingList([
       ...shoppingList.filter((l) => l.saved && (l as SavedShoppingList).id !== listId),
@@ -687,7 +689,8 @@ export function ShoppingListSection({
 
   // ── Convert ────────────────────────────────────────────────────────────────
   function handleConvertToPurchase() {
-    const lines: PurchaseLine[] = activeList.map((li) => {
+    const purchasedItems = activeList.filter(li => li.done);
+    const lines: PurchaseLine[] = purchasedItems.map((li) => {
       const item = items.find((i) => i.id === li.itemId);
       if (!item) return null;
       const stats = statsCache[li.itemId];
@@ -714,7 +717,12 @@ export function ShoppingListSection({
         return { itemId: li.itemId, numPkgs: qty, pricePerPkg, pricePerPkgAfterDiscount: pricePerPkg, discountTotal: 0, discountPerPkg: 0, pricePerInternal: last.pricePerInternal || 0, total: pricePerPkg * qty } as PurchaseLine;
       }
     }).filter(Boolean) as PurchaseLine[];
-    if (lines.length > 0) { onConvertToPurchase(lines); setConvertModal(false); }
+    if (lines.length > 0) {
+      onConvertToPurchase(lines);
+      const purchasedIds = new Set(lines.map(line => line.itemId));
+      setShoppingList(shoppingList.filter(entry => entry.saved || !purchasedIds.has((entry as ShoppingListItem).itemId)));
+      setConvertModal(false);
+    }
   }
 
   // ── Auto suggest ───────────────────────────────────────────────────────────
@@ -730,6 +738,12 @@ export function ShoppingListSection({
   // ── Price compare ──────────────────────────────────────────────────────────
   function openCompare(item: Item) {
     setCompareItem(item); setCompareOpen(true);
+  }
+
+  function saveComparisonOptions(itemId: string, options: ComparisonOption[]) {
+    setShoppingList(shoppingList.map(entry => !entry.saved && entry.itemId === itemId
+      ? { ...entry, comparisonOptions: options.length ? options : undefined }
+      : entry));
   }
 
   function addComparedPurchase(purchase: { itemId: string; pkgQty: number; pricePerPkg: number; numPkgs: number; brand: string; note: string }) {
@@ -833,7 +847,7 @@ export function ShoppingListSection({
 
       {/* Price Compare */}
       {compareOpen && (
-        <PriceCompareModal items={items} initialItem={compareItem} onBuyOption={addComparedPurchase} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
+        <PriceCompareModal items={items} initialItem={compareItem} initialOptions={compareListItem?.comparisonOptions} onOptionsChange={compareItem && compareListItem ? options => saveComparisonOptions(compareItem.id, options) : undefined} onBuyOption={addComparedPurchase} onClose={() => { setCompareOpen(false); setCompareItem(null); }} />
       )}
 
 
@@ -936,7 +950,7 @@ export function ShoppingListSection({
           <div className="space-y-4">
             <InfoBox color="teal">Itens com preço registrado no comparador usam esse valor. Os demais usam o último preço do histórico; itens sem histórico precisam ser preenchidos na compra.</InfoBox>
             <div className="space-y-1.5">
-              {activeList.map((li) => {
+              {activeList.filter(li => li.done).map((li) => {
                 const item = items.find((i) => i.id === li.itemId);
                 if (!item) return null;
                 const hasHistory = !!li.purchaseDetails || (statsCache[li.itemId]?.entries?.length ?? 0) > 0;
@@ -950,6 +964,7 @@ export function ShoppingListSection({
                   </div>
                 );
               })}
+              {doneCount === 0 && <p className="text-xs text-center text-slate-500 py-2">Marque como comprado os itens que deseja incluir no registro.</p>}
             </div>
             <div className="flex gap-3">
               <Btn onClick={() => setConvertModal(false)} variant="secondary" className="flex-1">Cancelar</Btn>
