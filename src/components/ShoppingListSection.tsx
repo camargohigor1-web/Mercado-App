@@ -84,6 +84,12 @@ const MarketItemCard = memo(function MarketItemCard({
   const lastPrice = stats ? (item.type === "bulk" ? stats.lastPrice / factor : stats.lastPrice) : null;
   const minPrice  = stats ? (item.type === "bulk" ? stats.minPrice  / factor : stats.minPrice)  : null;
   const avgPrice  = stats ? (item.type === "bulk" ? stats.avgPrice  / factor : stats.avgPrice)  : null;
+  const lastPackageQty = item.type === "bulk" && stats?.entries.length
+    ? stats.entries[stats.entries.length - 1].pkgQty
+    : null;
+  const lastPackageDisplayQty = lastPackageQty ? lastPackageQty * factor : null;
+  const lastPackageEquivalent = lastPackageDisplayQty !== null && lastPrice !== null
+    ? lastPackageDisplayQty * lastPrice : null;
   const priceVsAvg = lastPrice !== null && avgPrice !== null && avgPrice > 0
     ? ((lastPrice - avgPrice) / avgPrice) * 100 : null;
   const habitMonthlyQty = habit && item.type === "packaged" && habit.avgMonthlyInternalQty !== null
@@ -201,6 +207,16 @@ const MarketItemCard = memo(function MarketItemCard({
             <p className={`text-xs text-center py-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
               Sem histórico de preços ainda
             </p>
+          )}
+
+          {item.type === "bulk" && lastPackageDisplayQty !== null && lastPackageEquivalent !== null && (
+            <div className={`rounded-xl px-3 py-2.5 flex items-center justify-between gap-3 ${isDark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-100"}`}>
+              <div>
+                <p className={`text-[10px] font-black uppercase tracking-wide ${isDark ? "text-amber-400" : "text-amber-700"}`}>Equivalente à última embalagem</p>
+                <p className="text-[10px] text-slate-500">{fmtN(lastPackageDisplayQty, 3).replace(/,?0+$/, "")} {du} · estimado pelo último preço/{du}</p>
+              </div>
+              <p className={`text-sm font-black ${isDark ? "text-amber-300" : "text-amber-800"}`}>{fmt(lastPackageEquivalent)}</p>
+            </div>
           )}
 
           {habit && (
