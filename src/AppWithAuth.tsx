@@ -22,5 +22,5 @@ export default function AppWithAuth() {
     return <LoginScreen authState={authState} />;
   }
 
-  return <App />;
+  return <App userId={authState.user!.uid} />;
 }

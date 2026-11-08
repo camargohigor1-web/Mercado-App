@@ -356,9 +356,9 @@ function NavTab({ label, icon, active, isDark, onClick }: {
   );
 }
 
-export default function App() {
+export default function App({ userId }: { userId: string }) {
   return (
-    <AppProvider>
+    <AppProvider userId={userId}>
       <AppInner />
     </AppProvider>
   );

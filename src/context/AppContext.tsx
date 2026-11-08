@@ -84,7 +84,8 @@ function useDebounce() {
 }
 
 // ─── Provider ────────────────────────────────────────────────────────────────
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({ children, userId }: { children: ReactNode; userId: string }) {
+  const themeKey = `${KEYS.theme}_${userId}`;
   // ── Estado inicial a partir do localStorage (cache rápido) ────────────────
   const [items, setItemsRaw] = useState<Item[]>(() => load(KEYS.items, []));
   const [markets, setMarketsRaw] = useState<Market[]>(() => load(KEYS.markets, []));
@@ -95,7 +96,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = load(KEYS.categories, null);
     return stored ?? DEFAULT_CATEGORIES;
   });
-  const [theme, setThemeRaw] = useState<string>(() => load(KEYS.theme, "dark"));
+  // Migra a preferência antiga no primeiro uso e depois mantém um valor por conta.
+  const [theme, setThemeRaw] = useState<string>(() => load(themeKey, load(KEYS.theme, "dark")));
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error" | "offline">("idle");
 
   // ── Flags de controle ─────────────────────────────────────────────────────
@@ -156,10 +158,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((v: string) => {
     setThemeRaw(v);
-    save(KEYS.theme, v);
-    markLocalWrite();
-    debounce("theme", () => saveField("theme", v));
-  }, [debounce]);
+    save(themeKey, v);
+  }, [themeKey]);
 
   // ── Restore completo (importar backup) ────────────────────────────────────
   const restoreAll = useCallback(async (data: Partial<AppState>) => {
@@ -205,7 +205,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           shoppingList: load(KEYS.shoppingList, []),
           warehouse:    load(KEYS.warehouse, []),
           categories:   load(KEYS.categories, null) ?? DEFAULT_CATEGORIES,
-          theme:        load(KEYS.theme, "dark"),
         };
         saveAllData(localPayload).catch(console.error);
         return;
@@ -249,11 +248,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCategoriesRaw(remoteData.categories);
         save(KEYS.categories, remoteData.categories);
       }
-      if (remoteData.theme !== undefined) {
-        setThemeRaw(remoteData.theme);
-        save(KEYS.theme, remoteData.theme);
-      }
-
       setTimeout(() => {
         isRemoteUpdate.current = false;
         setSyncStatus("idle");
