@@ -6,6 +6,7 @@ import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Modal, Card, Badge, Empty, InfoBox, ConfirmModal, LineChart } from "./ui";
 import { PriceCompareModal } from "./PriceCompareModal";
+import { PriceHistorySummary } from "./PriceHistorySummary";
 import type { LineChartPoint } from "./ui";
 import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, calcStats, calcPurchaseHabitStats } from "../utils";
 import type { Item, ShoppingListItem, SavedShoppingList, PurchaseLine, ComparisonOption } from "../types";
@@ -82,14 +83,7 @@ const MarketItemCard = memo(function MarketItemCard({
   }
 
   const lastPrice = stats ? (item.type === "bulk" ? stats.lastPrice / factor : stats.lastPrice) : null;
-  const minPrice  = stats ? (item.type === "bulk" ? stats.minPrice  / factor : stats.minPrice)  : null;
-  const avgPrice  = stats ? (item.type === "bulk" ? stats.avgPrice  / factor : stats.avgPrice)  : null;
-  const lastPackageQty = item.type === "bulk" && stats?.entries.length
-    ? stats.entries[stats.entries.length - 1].pkgQty
-    : null;
-  const lastPackageDisplayQty = lastPackageQty ? lastPackageQty * factor : null;
-  const lastPackageEquivalent = lastPackageDisplayQty !== null && lastPrice !== null
-    ? lastPackageDisplayQty * lastPrice : null;
+  const avgPrice = stats ? (item.type === "bulk" ? stats.avgPrice / factor : stats.avgPrice) : null;
   const priceVsAvg = lastPrice !== null && avgPrice !== null && avgPrice > 0
     ? ((lastPrice - avgPrice) / avgPrice) * 100 : null;
   const habitMonthlyQty = habit && item.type === "packaged" && habit.avgMonthlyInternalQty !== null
@@ -185,38 +179,11 @@ const MarketItemCard = memo(function MarketItemCard({
         }`}>
           {/* Price grid */}
           {stats ? (
-            <div className="grid grid-cols-3 gap-1.5">
-              {[
-                { label: "Mínimo",  val: minPrice,  colorBg: isDark ? "bg-teal-500/10"  : "bg-teal-50",  colorTxt: "text-teal-400",  colorLbl: isDark ? "text-teal-700"  : "text-teal-500"  },
-                { label: "Médio",   val: avgPrice,  colorBg: isDark ? "bg-green-500/10" : "bg-green-50", colorTxt: "text-green-400", colorLbl: isDark ? "text-green-700" : "text-green-500" },
-                { label: "Último",
-                  val: lastPrice,
-                  colorBg: priceVsAvg !== null && priceVsAvg > 5 ? (isDark ? "bg-red-500/10" : "bg-red-50") : (isDark ? "bg-blue-500/10" : "bg-blue-50"),
-                  colorTxt: priceVsAvg !== null && priceVsAvg > 5 ? "text-red-400" : "text-blue-400",
-                  colorLbl: priceVsAvg !== null && priceVsAvg > 5 ? (isDark ? "text-red-700" : "text-red-400") : (isDark ? "text-blue-700" : "text-blue-400"),
-                },
-              ].map(({ label, val, colorBg, colorTxt, colorLbl }) => (
-                <div key={label} className={`rounded-xl p-2.5 ${colorBg}`}>
-                  <p className={`text-[9px] font-black uppercase tracking-wide mb-1 ${colorLbl}`}>{label}</p>
-                  <p className={`text-xs font-black ${colorTxt}`}>{fmt(val!)}</p>
-                  <p className={`text-[9px] ${colorLbl}`}>/{item.type === "bulk" ? du : "emb"}</p>
-                </div>
-              ))}
-            </div>
+            <PriceHistorySummary item={item} stats={stats} isDark={isDark} />
           ) : (
             <p className={`text-xs text-center py-2 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
               Sem histórico de preços ainda
             </p>
-          )}
-
-          {item.type === "bulk" && lastPackageDisplayQty !== null && lastPackageEquivalent !== null && (
-            <div className={`rounded-xl px-3 py-2.5 flex items-center justify-between gap-3 ${isDark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-100"}`}>
-              <div>
-                <p className={`text-[10px] font-black uppercase tracking-wide ${isDark ? "text-amber-400" : "text-amber-700"}`}>Equivalente à última embalagem</p>
-                <p className="text-[10px] text-slate-500">{fmtN(lastPackageDisplayQty, 3).replace(/,?0+$/, "")} {du} · estimado pelo último preço/{du}</p>
-              </div>
-              <p className={`text-sm font-black ${isDark ? "text-amber-300" : "text-amber-800"}`}>{fmt(lastPackageEquivalent)}</p>
-            </div>
           )}
 
           {habit && (

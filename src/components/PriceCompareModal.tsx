@@ -3,6 +3,7 @@ import { useTheme } from "../hooks/useTheme";
 import { Icon } from "./Icon";
 import { Modal, Card, Badge, Btn, Inp, Sel, InfoBox, LineChart } from "./ui";
 import { MoneyInp } from "./MoneyInput";
+import { PriceHistorySummary } from "./PriceHistorySummary";
 import { fmt, fmtN, getDisplayUnit, calcStats, getDisplayFactor } from "../utils";
 import type { ComparisonOption } from "../types";
 import { useAppContext } from "../context/AppContext";
@@ -60,20 +61,6 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
   const itemStats = selectedItem ? calcStats(selectedItem.id, items, purchases, []) : null;
   const priceFactor = selectedItem ? getDisplayFactor(selectedItem) : 1;
   const historicalPrice = (value: number) => selectedItem?.type === "bulk" ? value / priceFactor : value;
-  const maxHistoricalPrice = itemStats?.entries.length
-    ? Math.max(...itemStats.entries.map(entry => selectedItem?.type === "bulk" ? entry.pricePerUnit ?? 0 : entry.pricePerPkg ?? 0))
-    : null;
-  const lastPackageQty = selectedItem?.type === "bulk" && itemStats?.entries.length
-    ? (itemStats.entries[itemStats.entries.length - 1].pkgQty ?? 1) * priceFactor
-    : null;
-  const packagePriceStats = selectedItem?.type === "bulk" && lastPackageQty !== null && itemStats
-    ? [
-        { label: "Mín", value: itemStats.minPrice },
-        { label: "Méd", value: itemStats.avgPrice },
-        { label: "Máx", value: maxHistoricalPrice! },
-        { label: "Últ", value: itemStats.lastPrice },
-      ].map(stat => ({ ...stat, value: historicalPrice(stat.value) * lastPackageQty }))
-    : null;
 
   function updateOptions(next: ComparisonOption[]) {
     setOptions(next);
@@ -133,27 +120,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
       <div className="space-y-4">
         <InfoBox color="blue">Compare tamanhos diferentes para o melhor custo-benefício por unidade.</InfoBox>
         {selectedItem && <>
-          {packagePriceStats ? (
-            <div className={`rounded-xl border px-2.5 py-2 ${isDark ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-100"}`}>
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <p className={`text-[9px] font-black uppercase tracking-wide ${isDark ? "text-amber-400" : "text-amber-700"}`}>Equivalente à última embalagem</p>
-                <p className="text-[9px] text-slate-500">{fmtN(lastPackageQty!, 3).replace(/,?0+$/, "")} {unit}</p>
-              </div>
-              <div className="grid grid-cols-4 gap-1">
-                {packagePriceStats.map(({ label, value }) => (
-                  <div key={label} className="min-w-0 flex items-baseline gap-1">
-                    <span className="text-[9px] text-slate-500">{label}</span>
-                    <span className={`truncate text-[11px] font-black ${isDark ? "text-amber-300" : "text-amber-800"}`}>{fmt(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-1.5">{[
-              { label: "Mínimo", value: itemStats?.minPrice }, { label: "Médio", value: itemStats?.avgPrice },
-              { label: "Máximo", value: maxHistoricalPrice }, { label: "Último", value: itemStats?.lastPrice },
-            ].map(({label,value}) => <div key={label} className={`min-w-0 rounded-lg p-2 ${isDark ? "bg-slate-900" : "bg-slate-50"}`}><p className="truncate text-[9px] font-bold uppercase text-slate-500">{label}</p><p className="mt-1 truncate text-xs font-black">{value == null ? "—" : fmt(historicalPrice(value))}</p><p className="text-[9px] text-slate-500">/{selectedItem.type === "bulk" ? unit : "emb"}</p></div>)}</div>
-          )}
+          {itemStats?.entries.length ? <PriceHistorySummary item={selectedItem} stats={itemStats} isDark={isDark} /> : null}
           {chartData.length >= 2 && <div className={`rounded-xl p-3 ${isDark ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200"}`}><LineChart data={chartData} formatValue={fmt} unit={selectedItem.type === "bulk" ? `R$/${unit}` : "R$/emb"} /></div>}
         </>}
 
