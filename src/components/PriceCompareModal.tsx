@@ -70,7 +70,7 @@ export function PriceCompareModal({ items, initialItem = null, onClose, embedded
     ? [
         { label: "Mín", value: itemStats.minPrice },
         { label: "Méd", value: itemStats.avgPrice },
-        { label: "Máx", value: maxHistoricalPrice ?? itemStats.maxPrice },
+        { label: "Máx", value: maxHistoricalPrice! },
         { label: "Últ", value: itemStats.lastPrice },
       ].map(stat => ({ ...stat, value: historicalPrice(stat.value) * lastPackageQty }))
     : null;
