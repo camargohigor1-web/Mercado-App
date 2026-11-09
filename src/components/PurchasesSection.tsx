@@ -37,7 +37,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const [dateTo, setDateTo] = useState("");
   const [quickPeriod, setQuickPeriod] = useState<"all" | "month" | "30d" | "3m" | "1y" | "custom">("all");
   const [filterCat, setFilterCat] = useState("");
-  const [sortBy, setSortBy] = useState<"freq" | "recent" | "alpha">("recent");
+  const [detailSort, setDetailSort] = useState<"registered" | "alphabetical" | "category">("registered");
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const lineRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [form, setForm] = useState<{ marketId: string; date: string; note: string; lines: PurchaseLine[] }>({
@@ -420,7 +420,6 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const purchaseSearchQuery = normalizeName(purchaseSearch);
   const filteredPurchases = sorted.filter(p =>
     (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo) &&
-    (!filterCat || p.lines.some(line => (getItem(line.itemId)?.category || "Sem categoria") === filterCat)) &&
     (!purchaseSearchQuery || normalizeName(getMkt(p.marketId)).includes(purchaseSearchQuery) ||
       p.date.includes(purchaseSearchQuery) || normalizeName(p.note || "").includes(purchaseSearchQuery) ||
       p.lines.some(line => {
@@ -429,15 +428,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           .some(value => normalizeName(value).includes(purchaseSearchQuery));
       }))
   );
-  const availablePurchaseCategories = [...new Set(purchases.flatMap(p => p.lines.map(line => getItem(line.itemId)?.category || "Sem categoria")))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const purchaseFrequency = filteredPurchases.reduce<Record<string, number>>((acc, p) => {
-    const market = getMkt(p.marketId); acc[market] = (acc[market] || 0) + 1; return acc;
-  }, {});
-  const orderedFilteredPurchases = [...filteredPurchases].sort((a, b) => {
-    if (sortBy === "alpha") return getMkt(a.marketId).localeCompare(getMkt(b.marketId), "pt-BR");
-    if (sortBy === "freq") return (purchaseFrequency[getMkt(b.marketId)] || 0) - (purchaseFrequency[getMkt(a.marketId)] || 0) || b.date.localeCompare(a.date);
-    return b.date.localeCompare(a.date);
-  });
+  const orderedFilteredPurchases = filteredPurchases;
   const marketLastPurchase = purchases.reduce<Record<string, string>>((acc, p) => {
     if (!acc[p.marketId] || p.date > acc[p.marketId]) acc[p.marketId] = p.date;
     return acc;
@@ -457,14 +448,11 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     const detailLines = p.lines.map((line, index) => ({ line, index, item: getItem(line.itemId) }))
       .filter(({ line, item }) => item && (!filterCat || (item.category || "Sem categoria") === filterCat) && (!detailQuery || [item.name, item.category || "", line.brand || "", line.note || ""].some(value => normalizeName(value).includes(detailQuery))))
       .sort((a, b) => {
-        if (sortBy === "alpha") return (a.item?.name || "").localeCompare(b.item?.name || "", "pt-BR");
-        if (sortBy === "freq") {
-          const count = (itemId: string) => purchases.reduce((sum, purchase) => sum + purchase.lines.filter(entry => entry.itemId === itemId).length, 0);
-          return count(b.line.itemId) - count(a.line.itemId) || a.index - b.index;
-        }
-        const lastDate = (itemId: string) => purchases.reduce((latest, purchase) => purchase.lines.some(entry => entry.itemId === itemId) && purchase.date > latest ? purchase.date : latest, "");
-        return lastDate(b.line.itemId).localeCompare(lastDate(a.line.itemId)) || a.index - b.index;
+        if (detailSort === "alphabetical") return (a.item?.name || "").localeCompare(b.item?.name || "", "pt-BR");
+        if (detailSort === "category") return (a.item?.category || "Sem categoria").localeCompare(b.item?.category || "Sem categoria", "pt-BR") || (a.item?.name || "").localeCompare(b.item?.name || "", "pt-BR");
+        return a.index - b.index;
       });
+    const detailCategories = [...new Set(p.lines.map(line => getItem(line.itemId)?.category || "Sem categoria"))].sort((a, b) => a.localeCompare(b, "pt-BR"));
     return (
       <div className="space-y-4 animate-slide-in-right">
         <div className="flex items-center gap-3">
@@ -483,8 +471,9 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Icon name="search" size={13} /></span>
             {purchaseSearch && <button onClick={() => setPurchaseSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500"><Icon name="x" size={12} /></button>}
           </div>
+          <CategoryPills categories={detailCategories} active={filterCat} onChange={setFilterCat} isDark={isDark} />
           <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-            {([{ id: "freq", label: "Frequência" }, { id: "recent", label: "Recentes" }, { id: "alpha", label: "A–Z" }] as const).map(opt => <button key={opt.id} onClick={() => setSortBy(opt.id)} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${sortBy === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>{opt.label}</button>)}
+            {([{ id: "registered", label: "Sequência" }, { id: "alphabetical", label: "A–Z" }, { id: "category", label: "Categoria" }] as const).map(opt => <button key={opt.id} onClick={() => setDetailSort(opt.id)} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${detailSort === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>{opt.label}</button>)}
           </div>
         </div>
         {p.note && (
@@ -493,12 +482,14 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           </div>
         )}
         <div className="space-y-2">
-          {detailLines.map(({ line: l, index: i, item: it }) => {
+          {detailLines.map(({ line: l, index: i, item: it }, rowIndex) => {
             if (!it) return null;
             const d = lineDisplay(l);
             const isMatch = Boolean(detailQuery && [it.name, it.category || "", l.brand || "", l.note || ""].some(value => normalizeName(value).includes(detailQuery)));
             return (
-              <div key={i} ref={el => { lineRefs.current[`${p.id}:${i}`] = el; }} onClick={() => setExpandedItemId(expandedItemId === l.itemId ? null : l.itemId)} className={`${isMatch || expandedItemId === l.itemId ? "ring-2 ring-teal-500" : ""} ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4 scroll-mt-24 cursor-pointer`}>
+              <div key={i}>
+              {detailSort === "category" && (rowIndex === 0 || detailLines[rowIndex - 1].item?.category !== it.category) && <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 px-1 mt-3">{it.category || "Sem categoria"}</p>}
+              <div ref={el => { lineRefs.current[`${p.id}:${i}`] = el; }} onClick={() => setExpandedItemId(expandedItemId === l.itemId ? null : l.itemId)} className={`${isMatch || expandedItemId === l.itemId ? "ring-2 ring-teal-500" : ""} ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4 scroll-mt-24 cursor-pointer`}>
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
@@ -529,6 +520,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                     <div className="space-y-2">{itemHistory.map(({ purchase, line }, historyIndex) => <div key={`${purchase.id}-${historyIndex}`} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${isDark ? "bg-slate-950" : "bg-white"}`}><div><p className={`text-xs font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>{getMkt(purchase.marketId)}</p><p className="text-[10px] text-slate-500">{new Date(`${purchase.date}T12:00:00`).toLocaleDateString("pt-BR")}{line.brand ? ` · ${line.brand}` : ""} · {line.numPkgs} emb.</p></div><span className="text-xs font-black text-teal-400">{fmt(line.total)}</span></div>)}</div>
                   </div>;
                 })()}
+              </div>
               </div>
             );
           })}
@@ -880,12 +872,6 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
             <span className="text-xs text-slate-500">até</span>
             <input type="date" aria-label="Data final" value={dateTo} onChange={e => { setDateTo(e.target.value); setQuickPeriod("custom"); }} className={`border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-teal-500 ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"}`} />
           </div>
-          <CategoryPills categories={availablePurchaseCategories} active={filterCat} onChange={setFilterCat} isDark={isDark} />
-          <div className={`flex gap-1.5 p-1 rounded-xl ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-            {([{ id: "freq", label: "Frequência" }, { id: "recent", label: "Recentes" }, { id: "alpha", label: "A–Z" }] as const).map(opt => (
-              <button key={opt.id} onClick={() => setSortBy(opt.id)} className={`flex-1 py-1.5 text-[10px] font-black rounded-lg transition-all ${sortBy === opt.id ? "bg-teal-500 text-white" : isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"}`}>{opt.label}</button>
-            ))}
-          </div>
         </div>
       )}
 
@@ -908,7 +894,6 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
         <Empty icon="cart" title="Nenhuma compra encontrada" />
       ) : (
         <div className="space-y-2">
-            {filterCat && <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 px-1">{filterCat}</p>}
             {orderedFilteredPurchases.map(p => (
             <div key={p.id} className="flex items-center gap-2">
               {selecting && (
@@ -918,7 +903,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                 </button>
               )}
               <div className="flex-1">
-                <Card onClick={selecting ? () => toggleSelect(p.id) : () => { setSelected(p); setExpandedItemId(null); setView("detail"); }}>
+                <Card onClick={selecting ? () => toggleSelect(p.id) : () => { setSelected(p); setExpandedItemId(null); setFilterCat(""); setDetailSort("registered"); setView("detail"); }}>
                   <div className="flex justify-between items-center">
                     <div>
                       <p className={`${isDark ? "text-slate-100" : "text-slate-900"} font-bold text-sm`}>{getMkt(p.marketId)}</p>
@@ -929,8 +914,8 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                     </div>
                     <p className="text-teal-400 font-black">{fmt(p.total)}</p>
                   </div>
-                  {(purchaseSearchQuery || filterCat) && <div className={`mt-2 pt-2 border-t ${isDark ? "border-slate-800" : "border-slate-100"} flex flex-wrap gap-1.5`}>
-                    {p.lines.filter(line => (!filterCat || (getItem(line.itemId)?.category || "Sem categoria") === filterCat) && (!purchaseSearchQuery || [getItem(line.itemId)?.name || "", getItem(line.itemId)?.category || "", line.brand || "", line.note || ""].some(value => normalizeName(value).includes(purchaseSearchQuery)))).map((line, idx) => <button key={`${line.itemId}-${idx}`} onClick={e => { e.stopPropagation(); setSelected(p); setExpandedItemId(line.itemId); setView("detail"); }} className="px-2 py-1 rounded-lg bg-teal-500/10 text-teal-500 text-[10px] font-bold">{getItem(line.itemId)?.name}{line.brand ? ` · ${line.brand}` : ""}</button>)}
+                  {purchaseSearchQuery && <div className={`mt-2 pt-2 border-t ${isDark ? "border-slate-800" : "border-slate-100"} flex flex-wrap gap-1.5`}>
+                    {p.lines.filter(line => [getItem(line.itemId)?.name || "", getItem(line.itemId)?.category || "", line.brand || "", line.note || ""].some(value => normalizeName(value).includes(purchaseSearchQuery))).map((line, idx) => <button key={`${line.itemId}-${idx}`} onClick={e => { e.stopPropagation(); setSelected(p); setExpandedItemId(line.itemId); setFilterCat(""); setDetailSort("registered"); setView("detail"); }} className="px-2 py-1 rounded-lg bg-teal-500/10 text-teal-500 text-[10px] font-bold">{getItem(line.itemId)?.name}{line.brand ? ` · ${line.brand}` : ""}</button>)}
                   </div>}
                 </Card>
               </div>
