@@ -1,5 +1,5 @@
 import { PriceCompareModal } from "./components/PriceCompareModal";
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { ThemeCtx } from "./hooks/useTheme";
 import { Icon } from "./components/Icon";
 import { SplashScreen } from "./components/SplashScreen";
@@ -10,6 +10,7 @@ import { useToast } from "./hooks/useToast";
 import type { PurchaseLine, Purchase } from "./types";
 import type { ReportsViewState } from "./components/ReportsSection";
 import { SyncIndicator } from "./components/SyncIndicator"; // ◄ IMPORTADO AQUI
+import { consumeRetiredBrowserBackClose, hasActiveBrowserBackClose } from "./hooks/useBrowserBackClose";
 
 // Lazy load de seções pesadas
 const HomeSection      = lazy(() => import("./components/HomeSection").then(m => ({ default: m.HomeSection })));
@@ -74,6 +75,75 @@ function AppInner() {
   const [highlightedProductId, setHighlightedProductId] = useState<string | undefined>(undefined);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [calculatorModalOpen, setCalculatorModalOpen] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const currentTabRef = useRef(tab);
+  const historyIndexRef = useRef(0);
+  const appHistoryInitializedRef = useRef(false);
+  const exitApprovedRef = useRef(false);
+
+  const navigateTo = useCallback((dest: string) => {
+    if (currentTabRef.current === dest) return;
+    const nextIndex = historyIndexRef.current + 1;
+    currentTabRef.current = dest;
+    historyIndexRef.current = nextIndex;
+    const nextState = { mercadoAppNavigation: true, appNavigationIndex: nextIndex, tab: dest };
+    if (hasActiveBrowserBackClose() && window.history.state?.mercadoBackCloseId) {
+      window.history.replaceState(nextState, "");
+    } else {
+      window.history.pushState(nextState, "");
+    }
+    setTab(dest);
+  }, []);
+
+  useEffect(() => {
+    if (!appHistoryInitializedRef.current) {
+      window.history.pushState({ mercadoAppNavigation: true, appNavigationIndex: 0, tab: currentTabRef.current }, "");
+      appHistoryInitializedRef.current = true;
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (exitApprovedRef.current) {
+        exitApprovedRef.current = false;
+        return;
+      }
+
+      // Allow modal and detail hooks to handle their own back entry first.
+      queueMicrotask(() => {
+        if (hasActiveBrowserBackClose()) return;
+
+        const state = event.state as { mercadoAppNavigation?: boolean; appNavigationIndex?: number; tab?: string; mercadoBackCloseId?: string } | null;
+        if (state?.mercadoAppNavigation && state.tab) {
+          historyIndexRef.current = state.appNavigationIndex || 0;
+          currentTabRef.current = state.tab;
+          setTab(state.tab);
+          setShowExitConfirmation(false);
+          return;
+        }
+
+        if (state?.mercadoBackCloseId) {
+          consumeRetiredBrowserBackClose(state.mercadoBackCloseId);
+          window.history.back();
+          return;
+        }
+
+        setShowExitConfirmation(true);
+        window.history.pushState({
+          mercadoAppNavigation: true,
+          appNavigationIndex: historyIndexRef.current,
+          tab: currentTabRef.current,
+        }, "");
+      });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const confirmExit = useCallback(() => {
+    setShowExitConfirmation(false);
+    exitApprovedRef.current = true;
+    window.history.back();
+  }, []);
 
   // Listener de erro de storage
   useEffect(() => {
@@ -86,7 +156,7 @@ function AppInner() {
 
   function handleConvertToPurchase(lines: PurchaseLine[]) {
     setPendingLines(lines);
-    setTab("purchases");
+    navigateTo("purchases");
   }
 
   function handlePurchaseCreatedFromList() {
@@ -103,40 +173,36 @@ function AppInner() {
   function handleRepeatPurchase(purchase: Purchase) {
     setPendingLines(purchase.lines.map(l => ({ ...l })));
     setPendingKey(Date.now());
-    setTab("purchases");
+    navigateTo("purchases");
   }
 
   function handleGoToNewPurchase() {
     setPendingLines(null);
     setPendingKey(Date.now());
-    setTab("purchases");
+    navigateTo("purchases");
   }
 
   function handleGoToReports(month: string) {
     setReportsMonth(month);
     setReportsViewState(prev => ({ ...prev, ...getMonthRange(month), mainTab: "gastos" }));
-    setTab("reports");
+    navigateTo("reports");
   }
 
   function handleGoToHistoryPurchase(purchaseId: string) {
     setOpenPurchaseId(purchaseId);
     setHighlightedProductId(undefined);
-    setTab("history");
+    navigateTo("history");
   }
 
   function handleGoToHistoryItem(itemId: string) {
     setOpenItemId(itemId);
-    setTab("history");
+    navigateTo("history");
   }
 
   function handleGoToHistoryPurchaseWithProduct(purchaseId: string, itemId: string) {
     setOpenPurchaseId(purchaseId);
     setHighlightedProductId(itemId);
-    setTab("history");
-  }
-
-  function navigateTo(dest: string) {
-    setTab(dest);
+    navigateTo("history");
   }
 
   function handleRestore(data: {
@@ -148,7 +214,7 @@ function AppInner() {
       list: data.shoppingList, warehouse: data.warehouse || [],
       categories: data.categories,
     });
-    setTab("home");
+    navigateTo("home");
     showToast("Dados restaurados com sucesso!");
   }
 
@@ -233,11 +299,11 @@ function AppInner() {
               {tab === "home" && (
                 <HomeSection
                   onGoToNewPurchase={handleGoToNewPurchase}
-                  onGoToShopping={() => setTab("shopping")}
+                  onGoToShopping={() => navigateTo("shopping")}
                   onOpenCalculator={() => setCalculatorModalOpen(true)}
-                  onGoToHistory={() => setTab("history")}
-                  onGoToHabits={() => setTab("history")}
-                  onGoToItems={() => setTab("items")}
+                  onGoToHistory={() => navigateTo("history")}
+                  onGoToHabits={() => navigateTo("history")}
+                  onGoToItems={() => navigateTo("items")}
                   onRepeatPurchase={handleRepeatPurchase}
                   onGoToReports={handleGoToReports}
                   onGoToHistoryPurchase={handleGoToHistoryPurchase}
@@ -247,7 +313,7 @@ function AppInner() {
               {tab === "shopping" && (
                 <ShoppingListSection
                   onConvertToPurchase={handleConvertToPurchase}
-                  onGoToItems={() => setTab("items")}
+                  onGoToItems={() => navigateTo("items")}
                   onGoToHistoryPurchase={handleGoToHistoryPurchase}
                   onGoToHistoryPurchaseWithProduct={handleGoToHistoryPurchaseWithProduct}
                 />
@@ -329,8 +395,21 @@ function AppInner() {
 
         <RightDrawer
           open={drawerOpen} onClose={() => setDrawer(false)}
-          tab={tab} setTab={setTab} theme={theme} setTheme={setTheme}
+          tab={tab} setTab={navigateTo} theme={theme} setTheme={setTheme}
         />
+
+        {showExitConfirmation && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm" role="presentation">
+            <div role="dialog" aria-modal="true" aria-labelledby="exit-dialog-title" className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"}`}>
+              <h2 id="exit-dialog-title" className={`text-base font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>Deseja sair do app?</h2>
+              <p className={`mt-2 text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>Você pode continuar usando o MercadoApp ou confirmar a saída.</p>
+              <div className="mt-5 flex gap-3">
+                <button onClick={() => setShowExitConfirmation(false)} className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"}`}>Continuar no app</button>
+                <button onClick={confirmExit} className="flex-1 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-bold text-white">Sair</button>
+              </div>
+            </div>
+          </div>
+        )}
         
         <SyncIndicator /> {/* ◄ INSERIDO AQUI ANTES DA CONCLUSÃO DA DIV PRINCIPAL */}
       </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
+import { useBrowserBackClose } from "../hooks/useBrowserBackClose";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
 import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch, LineChart } from "./ui";
@@ -31,6 +32,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const { items, setItems, markets, setMarkets, purchases, setPurchases, categories, setCategories } = useAppContext();
 
   const [view, setView] = useState<"list" | "new" | "detail" | "import">(initialLines ? "new" : "list");
+  const closePurchaseView = useBrowserBackClose(view !== "list", () => setView("list"));
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
   const [purchaseSearch, setPurchaseSearch] = useState("");
@@ -188,7 +190,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
       else onPurchaseSaved?.();
     }
     setImportedEntityIds({ items: [], markets: [], categories: [] });
-    setView("list");
+    closePurchaseView();
   }
 
   function cancelPurchaseForm() {
@@ -197,7 +199,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     if (importedEntityIds.categories.length) setCategories(importedEntityIds.categories);
     setImportedEntityIds({ items: [], markets: [], categories: [] });
     setEditingPurchase(null);
-    setView("list");
+    closePurchaseView();
   }
 
   function startEdit(p: Purchase) {
@@ -210,7 +212,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     if (!deleteTarget) return;
     setPurchases(purchases.filter(p => p.id !== deleteTarget));
     setDeleteTarget(null);
-    setView("list");
+    closePurchaseView();
   }
 
   function exportSelected() {
@@ -457,7 +459,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     return (
       <div className="space-y-4 animate-slide-in-right">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView("list")} className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}><Icon name="back" size={20} /></button>
+          <button onClick={closePurchaseView} className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}><Icon name="back" size={20} /></button>
           <div className="flex-1">
             <h2 className={`text-base font-black ${isDark ? "text-slate-100" : "text-slate-900"}`}>{mkt?.name || "Mercado"}</h2>
             <p className="text-xs text-slate-500">{new Date(p.date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
@@ -636,7 +638,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
             <span className="text-teal-400 font-black whitespace-nowrap">Total {fmt(total)}</span>
           </div>
           <div className="flex gap-3">
-            <Btn onClick={() => { setView("list"); setEditingPurchase(null); }} variant="secondary" className="flex-1">Cancelar</Btn>
+            <Btn onClick={() => { setEditingPurchase(null); closePurchaseView(); }} variant="secondary" className="flex-1">Cancelar</Btn>
             <Btn onClick={savePurchase} disabled={form.lines.length === 0 || !form.date || !form.marketId} className="flex-1">
               {editingPurchase ? "Atualizar" : "Salvar compra"}
             </Btn>
@@ -771,7 +773,7 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
     return (
       <div className="space-y-4 animate-slide-in-right">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setImportedData(null); setImportError(""); setView("list"); }}
+          <button onClick={() => { setImportedData(null); setImportError(""); closePurchaseView(); }}
             className={`${isDark ? "text-slate-500 hover:text-slate-200" : "text-slate-400 hover:text-slate-700"} p-1`}>
             <Icon name="back" size={20} />
           </button>
