@@ -2,10 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAppContext } from "../context/AppContext";
 import { Icon } from "./Icon";
-import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch } from "./ui";
+import { Btn, Inp, Sel, Modal, Card, Empty, InfoBox, ConfirmModal, ProductSearch, MarketSearch, LineChart } from "./ui";
 import { MoneyInp } from "./MoneyInput";
+import { PriceHistorySummary } from "./PriceHistorySummary";
 import { CategoryPills } from "./ShoppingListSection";
-import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, BULK_UNITS, PKG_UNITS } from "../utils";
+import { uid, fmt, fmtN, getDisplayFactor, getDisplayUnit, getScaleOptions, calcStats, BULK_UNITS, PKG_UNITS } from "../utils";
 import type { Item, Market, Purchase, PurchaseLine } from "../types";
 
 interface ImportedItem extends Omit<Item, "type"> {
@@ -513,10 +514,24 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
                 </div>
                 {expandedItemId === l.itemId && (() => {
                   const itemHistory = purchases.flatMap(purchase => purchase.lines.filter(entry => entry.itemId === l.itemId).map(entry => ({ purchase, line: entry }))).sort((a, b) => b.purchase.date.localeCompare(a.purchase.date));
+                  const historyStats = calcStats(l.itemId, items, purchases, []);
+                  const factor = getDisplayFactor(it);
+                  const unit = getDisplayUnit(it);
+                  const priceHistoryChart = historyStats?.entries.map(entry => ({
+                    label: new Date(`${entry.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+                    value: it.type === "bulk" ? (entry.pricePerUnit || 0) / factor : (entry.pricePerPkgAfterDiscount ?? entry.pricePerPkg ?? 0),
+                    date: entry.date,
+                    market: getMkt(entry.market),
+                    qty: entry.numPkgs ? `${entry.numPkgs} emb.` : undefined,
+                    discount: entry.discountTotal ? `Desc: ${fmt(entry.discountTotal)}` : undefined,
+                  })) || [];
                   return <div className={`mt-3 pt-3 border-t ${isDark ? "border-slate-800" : "border-slate-200"}`} onClick={e => e.stopPropagation()}>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Resumo desta compra · {getMkt(p.marketId)}</p>
                     <p className="text-xs text-slate-500 mb-3">{new Date(`${p.date}T12:00:00`).toLocaleDateString("pt-BR")} · {fmt(l.total)} · {l.numPkgs} emb.{l.brand ? ` · ${l.brand}` : ""}</p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Histórico do produto</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Histórico de preços · mínimo, médio e máximo</p>
+                    {historyStats && <PriceHistorySummary item={it} stats={historyStats} isDark={isDark} />}
+                    {priceHistoryChart.length >= 2 ? <div className="mt-3"><LineChart data={priceHistoryChart} formatValue={fmt} unit={it.type === "bulk" ? `R$/${unit}` : "R$/emb"} /></div> : <p className="text-xs text-slate-500 mt-2">Registre outra compra deste produto para ver a evolução dos preços.</p>}
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-3 mb-2">Compras do produto por mercado</p>
                     <div className="space-y-2">{itemHistory.map(({ purchase, line }, historyIndex) => <div key={`${purchase.id}-${historyIndex}`} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${isDark ? "bg-slate-950" : "bg-white"}`}><div><p className={`text-xs font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>{getMkt(purchase.marketId)}</p><p className="text-[10px] text-slate-500">{new Date(`${purchase.date}T12:00:00`).toLocaleDateString("pt-BR")}{line.brand ? ` · ${line.brand}` : ""} · {line.numPkgs} emb.</p></div><span className="text-xs font-black text-teal-400">{fmt(line.total)}</span></div>)}</div>
                   </div>;
                 })()}
