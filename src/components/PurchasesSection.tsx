@@ -32,6 +32,10 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const [selected, setSelected] = useState<Purchase | null>(null);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
   const [purchaseSearch, setPurchaseSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [detailSort, setDetailSort] = useState<"registered" | "alphabetical" | "category">("registered");
+  const lineRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [form, setForm] = useState<{ marketId: string; date: string; note: string; lines: PurchaseLine[] }>({
     marketId: markets[0]?.id || "",
     date: new Date().toISOString().slice(0, 10),
@@ -237,8 +241,24 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   }
 
   function normalizeName(value: string) {
-    return value.trim().toLocaleLowerCase("pt-BR");
+    return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
   }
+
+  useEffect(() => {
+    if (view !== "detail" || !selected || !purchaseSearch.trim()) return;
+    const query = normalizeName(purchaseSearch);
+    const matchIndex = selected.lines.findIndex(line => {
+      const item = getItem(line.itemId);
+      return [item?.name || "", item?.category || "", line.brand || "", line.note || ""]
+        .some(value => normalizeName(value).includes(query));
+    });
+    if (matchIndex < 0) return;
+    const timer = window.setTimeout(() => {
+      const element = lineRefs.current[`${selected.id}:${matchIndex}`];
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [view, selected, purchaseSearch]);
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -378,24 +398,17 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   const discountVal = parseFloat(lf.discount) || 0;
   const canPreview  = lf.numPkgs && lf.pricePerPkg && +lf.numPkgs > 0 && +lf.pricePerPkg > 0 && (!isBulk || (lf.pkgQty && +lf.pkgQty > 0));
   const sorted      = [...purchases].sort((a, b) => b.date.localeCompare(a.date));
-  const purchaseSearchQuery = purchaseSearch.trim().toLowerCase();
-  const filteredPurchases = purchaseSearchQuery
-    ? sorted.filter(p => {
-        const marketName = getMkt(p.marketId).toLowerCase();
-        const productNames = p.lines
-          .map(l => getItem(l.itemId)?.name || "")
-          .join(" ")
-          .toLowerCase();
-        const brands = p.lines.map(l => l.brand || "").join(" ").toLowerCase();
-        return (
-          marketName.includes(purchaseSearchQuery) ||
-          p.date.includes(purchaseSearchQuery) ||
-          (p.note || "").toLowerCase().includes(purchaseSearchQuery) ||
-          productNames.includes(purchaseSearchQuery) ||
-          brands.includes(purchaseSearchQuery)
-        );
-      })
-    : sorted;
+  const purchaseSearchQuery = normalizeName(purchaseSearch);
+  const filteredPurchases = sorted.filter(p =>
+    (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo) &&
+    (!purchaseSearchQuery || normalizeName(getMkt(p.marketId)).includes(purchaseSearchQuery) ||
+      p.date.includes(purchaseSearchQuery) || normalizeName(p.note || "").includes(purchaseSearchQuery) ||
+      p.lines.some(line => {
+        const item = getItem(line.itemId);
+        return [item?.name || "", item?.category || "", line.brand || "", line.note || ""]
+          .some(value => normalizeName(value).includes(purchaseSearchQuery));
+      }))
+  );
   const marketLastPurchase = purchases.reduce<Record<string, string>>((acc, p) => {
     if (!acc[p.marketId] || p.date > acc[p.marketId]) acc[p.marketId] = p.date;
     return acc;
@@ -411,6 +424,13 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
   if (view === "detail" && selected) {
     const p = selected;
     const mkt = markets.find(m => m.id === p.marketId);
+    const detailLines = p.lines.map((line, index) => ({ line, index, item: getItem(line.itemId) }))
+      .sort((a, b) => {
+        if (detailSort === "registered") return a.index - b.index;
+        if (detailSort === "alphabetical") return (a.item?.name || "").localeCompare(b.item?.name || "", "pt-BR");
+        return (a.item?.category || "").localeCompare(b.item?.category || "", "pt-BR") || (a.item?.name || "").localeCompare(b.item?.name || "", "pt-BR");
+      });
+    const detailQuery = normalizeName(purchaseSearch);
     return (
       <div className="space-y-4 animate-slide-in-right">
         <div className="flex items-center gap-3">
@@ -422,21 +442,36 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
           <button onClick={() => startEdit(p)} className={`p-2 ${isDark ? "text-slate-600 hover:text-blue-400" : "text-slate-400 hover:text-blue-500"}`}><Icon name="edit" size={16} /></button>
           <button onClick={() => setDeleteTarget(p.id)} className={`p-2 ${isDark ? "text-slate-600 hover:text-red-400" : "text-slate-400 hover:text-red-500"}`}><Icon name="trash" size={16} /></button>
         </div>
+        <div className="space-y-2">
+          <div className="relative">
+            <input value={purchaseSearch} onChange={e => setPurchaseSearch(e.target.value)} placeholder="Buscar produto, descrição ou marca..."
+              className={`w-full ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-700" : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"} border rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-teal-500`} />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Icon name="search" size={13} /></span>
+            {purchaseSearch && <button onClick={() => setPurchaseSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500"><Icon name="x" size={12} /></button>}
+          </div>
+          <label className="flex items-center gap-2 text-xs text-slate-500">Ordenar itens
+            <select value={detailSort} onChange={e => setDetailSort(e.target.value as typeof detailSort)} className={`rounded-lg border px-2 py-1.5 ${isDark ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-700"}`}>
+              <option value="registered">Sequência registrada</option><option value="alphabetical">Ordem alfabética</option><option value="category">Categoria</option>
+            </select>
+          </label>
+        </div>
         {p.note && (
           <div className={`px-3 py-2.5 rounded-xl text-xs italic ${isDark ? "bg-slate-900 text-slate-400 border border-slate-800" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>
             {p.note}
           </div>
         )}
         <div className="space-y-2">
-          {p.lines.map((l, i) => {
-            const it = getItem(l.itemId); if (!it) return null;
+          {detailLines.map(({ line: l, index: i, item: it }) => {
+            if (!it) return null;
             const d = lineDisplay(l);
+            const isMatch = Boolean(detailQuery && [it.name, it.category || "", l.brand || "", l.note || ""].some(value => normalizeName(value).includes(detailQuery)));
             return (
-              <div key={i} className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4`}>
+              <div key={i} ref={el => { lineRefs.current[`${p.id}:${i}`] = el; }} className={`${isMatch ? "ring-2 ring-teal-500" : ""} ${isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"} border rounded-2xl p-4 scroll-mt-24`}>
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className={`${isDark ? "text-slate-100" : "text-slate-900"} text-sm font-semibold`}>{it.name}</p>
                     {l.brand && <p className="text-xs text-slate-500 mt-0.5">Marca: {l.brand}</p>}
+                    {l.note && <p className="text-xs text-slate-500 mt-0.5">{l.note}</p>}
                     <p className="text-xs text-slate-500 mt-1">{d?.main}</p>
                     {d?.priceOriginal && (
                       <p className="text-xs text-slate-500 line-through mt-0.5">{d.priceOriginal}</p>
@@ -788,6 +823,16 @@ export function PurchasesSection({ initialLines, onCreatedFromList, onPurchaseSa
               <Icon name="x" size={12} />
             </button>
           )}
+        </div>
+      )}
+
+      {sorted.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Período</span>
+          <input type="date" aria-label="Data inicial" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-teal-500 ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"}`} />
+          <span className="text-xs text-slate-500">até</span>
+          <input type="date" aria-label="Data final" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-teal-500 ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-900"}`} />
+          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-[10px] font-bold text-teal-500">Limpar período</button>}
         </div>
       )}
 
