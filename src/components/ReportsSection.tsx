@@ -126,7 +126,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
   // Category detail entries
   const categoryEntries = filtered.flatMap(p =>
     p.lines.map(line => ({ purchase: p, line, item: getItem(line.itemId), market: getMkt(p.marketId) }))
-          .filter(e => e.item && e.item.category === selectedCategory)
+          .filter(e => e.item && (!selectedCategory || e.item.category === selectedCategory))
   );
   const categoryTotalSpent = categoryEntries.reduce((s, e) => s + e.line.total, 0);
   const categoryProductIds = new Set(categoryEntries.map(e => e.line.itemId));
@@ -196,16 +196,14 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
   }).sort((a, b) => b.spent - a.spent);
   const productSearchQuery = productSearch.trim().toLowerCase();
   const filteredProductPriceDetails = productSearchQuery
-    ? productPriceDetails.filter(pd =>
-        pd.item.name.toLowerCase().includes(productSearchQuery) ||
-        (pd.item.category || "").toLowerCase().includes(productSearchQuery)
-      )
+    ? productPriceDetails.filter(pd => pd.item.name.toLowerCase().includes(productSearchQuery))
     : productPriceDetails;
 
   const recentCategoryEntries = [...categoryEntries].sort((a, b) => b.purchase.date.localeCompare(a.purchase.date)).slice(0, 10);
   const categoryAvgPerProduct = categoryProductIds.size > 0 ? categoryTotalSpent / categoryProductIds.size : 0;
   const hasFilter = dateFrom || dateTo;
-  const categoryMode = Boolean(selectedCategory);
+  const categoryMode = Boolean(selectedCategory || productSearch.trim());
+  const categoryLabel = selectedCategory || "Todos os produtos";
 
   const card = `rounded-2xl border ${isDark ? "bg-slate-900/80 border-white/5" : "bg-white border-black/6"} p-4`;
   const lbl  = `text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? "text-slate-500" : "text-slate-400"}`;
@@ -254,14 +252,13 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
           <CategoryPills
             categories={categoriesWithData}
             active={selectedCategory}
-            onChange={(cat) => updateViewState({ selectedCategory: cat, expandedPriceItemId: null, productSearch: "" })}
+            onChange={(cat) => updateViewState({ selectedCategory: cat, expandedPriceItemId: null })}
             isDark={isDark}
             allLabel="Todas"
           />
         </div>
 
-        {categoryMode && (
-          <div className="flex flex-col gap-1 mb-3">
+        <div className="flex flex-col gap-1 mb-3">
             <label className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>Produto</label>
             <div className="relative">
               <input
@@ -281,7 +278,6 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
               )}
             </div>
           </div>
-        )}
 
         {/* Custom date range */}
         <div className="flex flex-col gap-1 mb-1">
@@ -298,7 +294,7 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
           <div className="flex items-center justify-between mt-2">
             <p className={`text-[10px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>
               {categoryMode
-                ? `${categoryEntries.length} movimentação${categoryEntries.length !== 1 ? "ões" : ""} em ${selectedCategory}`
+                ? `${categoryEntries.length} movimentação${categoryEntries.length !== 1 ? "ões" : ""} ${selectedCategory ? `em ${selectedCategory}` : "no período"}`
                 : `${filtered.length} compra${filtered.length !== 1 ? "s" : ""} no período`}
             </p>
             {hasFilter && (
@@ -319,9 +315,9 @@ export function ReportsSection({ initialMonth, viewState, onViewStateChange, onG
         ) : (
           <div className="space-y-5 animate-fade-slide-up">
             <div>
-              <p className={lbl}>Visão — {selectedCategory}</p>
+              <p className={lbl}>Visão — {categoryLabel}</p>
               <div className="grid grid-cols-2 gap-2">
-                <StatBox label="Total na categoria" val={fmt(categoryTotalSpent)} color="teal" />
+                <StatBox label={selectedCategory ? "Total na categoria" : "Total dos produtos"} val={fmt(categoryTotalSpent)} color="teal" />
                 <StatBox label="Produtos distintos" val={String(categoryProductIds.size)} color="blue" />
                 <StatBox label="Compras com itens" val={String(categoryPurchaseIds.size)} />
                 <StatBox label="Média/produto" val={fmt(categoryAvgPerProduct)} color="green" />
